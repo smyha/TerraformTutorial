@@ -53,8 +53,8 @@ resource "aws_security_group" "web_server_sg" {
 
 # Create an EC2 instance with Apache2 web server
 resource "aws_instance" "app" {
-  # Instance type: t2.micro (eligible for AWS free tier)
-  instance_type              = "t2.micro"
+  # Instance type: t3.micro (eligible for AWS free tier)
+  instance_type              = "t3.micro"
   # Availability zone for instance placement
   availability_zone          = "us-east-2a"
   # Amazon Linux 2 AMI image ID
