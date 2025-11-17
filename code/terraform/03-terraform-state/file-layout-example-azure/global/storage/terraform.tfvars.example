@@ -1,0 +1,20 @@
+# Copy this file to terraform.tfvars and fill in your values
+# Don't commit terraform.tfvars to version control as it may contain sensitive data
+
+subscription_id = "YOUR_AZURE_SUBSCRIPTION_ID"
+
+# Storage account name must be globally unique and lowercase (3-24 characters)
+storage_account_name = "tfstateXXXXXX"
+
+# Cosmos DB account name must be globally unique and lowercase
+cosmos_db_account_name = "tflocksXXXXXX"
+
+# Resource group name
+resource_group_name = "rg-terraform-state"
+
+# Container name for state files
+container_name = "tfstate"
+
+# Cosmos DB database and container names
+cosmos_db_database_name = "terraform-locks"
+cosmos_db_container_name = "locks"

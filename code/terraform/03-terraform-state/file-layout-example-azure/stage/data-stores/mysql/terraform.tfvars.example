@@ -1,0 +1,23 @@
+# Copy this file to terraform.tfvars and fill in your values
+# Don't commit terraform.tfvars to version control as it may contain sensitive data
+
+subscription_id = "YOUR_AZURE_SUBSCRIPTION_ID"
+
+# Database server name must be globally unique and lowercase
+db_server_name = "mysqlserverXXXXXX"
+
+# Resource group name
+resource_group_name = "rg-mysql-server"
+
+# Database admin credentials
+db_admin_username = "azureadmin"
+db_admin_password = "P@ssw0rd1234!"  # Use a strong password
+
+# Database configuration
+database_name = "appdb"
+db_sku_name = "B_Gen5_1"
+db_storage_mb = 5120
+db_version = "5.7"
+
+# Subnet ID from the application VNet (replace with your actual subnet ID)
+app_subnet_id = "/subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RG/providers/Microsoft.Network/virtualNetworks/YOUR_VNET/subnets/YOUR_SUBNET"

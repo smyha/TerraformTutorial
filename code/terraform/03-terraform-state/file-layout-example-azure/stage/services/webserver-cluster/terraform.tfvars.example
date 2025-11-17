@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars and fill in your values
+# Don't commit terraform.tfvars to version control as it may contain sensitive data
+
+subscription_id = "YOUR_AZURE_SUBSCRIPTION_ID"
+
+# Resource configuration
+resource_group_name = "rg-webserver-cluster"
+location = "East US"
+
+# Virtual Network configuration
+vnet_name = "vnet-webserver-cluster"
+vnet_address_space = ["10.0.0.0/16"]
+
+# Subnet configuration
+subnet_name = "subnet-webserver-cluster"
+subnet_address_prefixes = ["10.0.1.0/24"]
+
+# Network Security Group
+nsg_name = "nsg-webserver-cluster"
+
+# Load Balancer configuration
+lb_name = "lb-webserver-cluster"
+lb_pip_name = "pip-webserver-cluster"
+
+# Virtual Machine Scale Set configuration
+vmss_name = "vmss-webserver-cluster"
+vm_size = "Standard_B1s"
+instance_count = 2
+max_instance_count = 5
