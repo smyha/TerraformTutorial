@@ -1,6 +1,7 @@
 # ================================================================================
-# TERRAFORM CONFIGURATION WITH WORKSPACES
+# TERRAFORM CONFIGURATION WITH WORKSPACES 
 # ================================================================================
+# Usefull for quick, isolated test on same configuration
 # This configuration demonstrates Terraform Workspaces for managing multiple
 # environments (dev, staging, prod) from a single codebase. Each workspace
 # maintains its own state file and can have different resource configurations.
@@ -30,6 +31,12 @@ terraform {
     # region         = "us-east-2"
     # dynamodb_table = "<YOUR DYNAMODB TABLE>"
     # encrypt        = true
+
+    bucket         = "terraform-smyha"
+    key            = "workspaces-example/terraform.tfstate"
+    region         = "us-east-2"
+    dynamodb_table = "terraform-table"
+    encrypt        = true
   }
 }
 
@@ -42,11 +49,15 @@ provider "aws" {
 # EC2 INSTANCE WITH WORKSPACE-AWARE CONFIGURATION
 # ================================================================================
 # This instance type varies based on the active workspace:
-# - "default" workspace: t2.medium (suitable for production)
-# - All other workspaces: t2.micro (cost-effective for dev/testing)
+# - "default" workspace: t3.micro (Free Tier eligible - production-like)
+# - All other workspaces: t3.small (Free Tier eligible - development)
 #
 # This demonstrates how to create environment-specific infrastructure from
 # a single configuration file using conditional logic with terraform.workspace
+#
+# NOTE: t3.micro is the ONLY EC2 instance type eligible for AWS Free Tier.
+# Both workspaces use it for cost control. To use different instance types
+# in production (non-Free Tier), modify the instance_type line accordingly.
 
 resource "aws_instance" "example" {
   # Ubuntu 20.04 LTS AMI in us-east-2
@@ -56,8 +67,11 @@ resource "aws_instance" "example" {
   # Syntax: condition ? value_if_true : value_if_false
   # - terraform.workspace: Built-in variable with current workspace name
   # - "default": The default workspace (always exists, created automatically)
-  # - t2.medium: Larger instance for production/default environment
-  # - t2.micro: Smaller instance for development environments
-  instance_type = terraform.workspace == "default" ? "t2.medium" : "t2.micro"
+  # - t3.micro: ONLY Free Tier eligible EC2 instance type
+  #
+  # For production deployments with different instance types per workspace:
+  # instance_type = terraform.workspace == "default" ? "t3.small" : "t3.micro"
+  # WARNING: Other instance types (t2.micro, t3.small, etc.) are NOT Free Tier eligible
+  instance_type = terraform.workspace == "default" ? "t3.micro" : "t3.small"
 }
 

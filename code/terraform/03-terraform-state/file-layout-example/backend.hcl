@@ -14,7 +14,7 @@
 
 # The S3 bucket name where Terraform state files will be stored
 # Must be globally unique across all AWS accounts
-bucket = "terraform-up-and-running-state"
+bucket = "terraform-smyha"
 
 # AWS region where the S3 bucket and DynamoDB table are located
 # Must match the region where these resources were created
@@ -22,7 +22,7 @@ region = "us-east-2"
 
 # DynamoDB table name for state locking
 # Prevents concurrent Terraform operations from corrupting the state
-dynamodb_table = "terraform-up-and-running-locks"
+dynamodb_table = "terraform-table"
 
 # Enable encryption of state files at rest
 # This adds a second layer of encryption on top of S3's default encryption

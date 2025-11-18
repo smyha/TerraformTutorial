@@ -41,10 +41,10 @@ terraform {
   # can reference this same backend to store their state in the same S3 bucket
   # using the same partial configuration approach.
   #
-  backend "s3" {
+  # backend "s3" {
     # Path within the bucket where THIS MODULE'S state file is stored
     # Each module must have a UNIQUE key to avoid overwriting other states
-    key = "global/s3/terraform.tfstate"
+    # key = "global/s3/terraform.tfstate"
 
     # IMPORTANT: Variables are not allowed
     # AWS region where the S3 bucket and DynamoDB table are located
@@ -60,7 +60,7 @@ terraform {
     #  }
     # The other settings (bucket, region, dynamodb_table, encrypt)
     # are provided via -backend-config=../backend.hcl when running terraform init
-  }
+  # }
 }
 
 # ================================================================================

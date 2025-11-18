@@ -16,6 +16,38 @@ terraform {
       version = "~> 4.0"
     }
   }
+
+  # ================================================================================
+  # S3 BACKEND CONFIGURATION (PARTIAL - DRY APPROACH)
+  # ================================================================================
+  # UNCOMMENT WHEN READY FOR REMOTE STATE
+  # This uses PARTIAL BACKEND CONFIGURATION to reduce copy-paste duplication.
+  # The shared settings (bucket, region, dynamodb_table, encrypt) are defined
+  # in the backend.hcl file at the project root.
+  #
+  # INITIALIZATION:
+  # To initialize this module with the partial configuration, run:
+  #   terraform init -backend-config=../../backend.hcl
+  #
+  # This approach:
+  # ✓ Reduces duplication across modules
+  # ✓ Makes it easy to change bucket/region in one place
+  # ✓ Still allows unique 'key' for each module
+  # ✓ Follows the DRY (Don't Repeat Yourself) principle
+  #
+  # IMPORTANT: Only the 'key' is defined here. The other settings
+  # (bucket, region, dynamodb_table, encrypt) come from backend.hcl
+  #
+  # The state file path mirrors the folder structure:
+  # - This file: stage/services/webserver-cluster/main.tf
+  # - State file: stage/services/webserver-cluster/terraform.tfstate
+  # This creates a 1:1 mapping between code layout and state file location.
+  #
+  # backend "s3" {
+  #   key = "stage/services/webserver-cluster/terraform.tfstate"
+  # }
+  # The other settings (bucket, region, dynamodb_table, encrypt)
+  # are provided via -backend-config=../../backend.hcl when running terraform init
 }
 
 # Configure the AWS provider to use the us-east-2 region

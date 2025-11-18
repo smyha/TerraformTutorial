@@ -16,21 +16,45 @@ terraform {
     }
   }
 
-  # Configure S3 as the remote backend for storing Terraform state
-  # This keeps the state file away from local machine for team collaboration
-  # and provides centralized state management.
-  backend "s3" {
-    # NOTE: This backend configuration is filled in automatically at test time
-    # by Terratest. If you wish to run this example manually, uncomment and
-    # fill in the config below with your actual values.
-
-    # bucket         = "<YOUR S3 BUCKET>"         # S3 bucket name (e.g., "my-terraform-state")
-    # key            = "<SOME PATH>/terraform.tfstate"  # Path within bucket (e.g., "stage/data-stores/mysql/terraform.tfstate")
-    # region         = "us-east-2"                 # AWS region where S3 bucket is located
-    # dynamodb_table = "<YOUR DYNAMODB TABLE>"    # DynamoDB table for state locking
-    # encrypt        = true                        # Enable encryption for state in transit
-
-  }
+  # ================================================================================
+  # S3 BACKEND CONFIGURATION (PARTIAL - DRY APPROACH)
+  # ================================================================================
+  # UNCOMMENT WHEN READY FOR REMOTE STATE
+  # This uses PARTIAL BACKEND CONFIGURATION to reduce copy-paste duplication.
+  # The shared settings (bucket, region, dynamodb_table, encrypt) are defined
+  # in the backend.hcl file at the project root.
+  #
+  # INITIALIZATION:
+  # To initialize this module with the partial configuration, run:
+  #   terraform init -backend-config=../../backend.hcl
+  #
+  # This approach:
+  # ✓ Reduces duplication across modules
+  # ✓ Makes it easy to change bucket/region in one place
+  # ✓ Still allows unique 'key' for each module
+  # ✓ Follows the DRY (Don't Repeat Yourself) principle
+  #
+  # IMPORTANT: Only the 'key' is defined here. The other settings
+  # (bucket, region, dynamodb_table, encrypt) come from backend.hcl
+  #
+  # The state file path mirrors the folder structure:
+  # - This file: stage/data-stores/mysql/main.tf
+  # - State file: stage/data-stores/mysql/terraform.tfstate
+  # This creates a 1:1 mapping between code layout and state file location.
+  #
+  # backend "s3" {
+  #   key = "stage/data-stores/mysql/terraform.tfstate"
+  # 
+  #  ! Replace this with your bucket name!
+  #   bucket = "terraform-up-and-running-st
+  #   key = "stage/data-stores/mysql/ter
+  #   region = "us-east-2"
+  #  ! Replace this with your DynamoDB table name
+  #   dynamodb_table = "terraform-up-and-running-lo
+  #   encrypt = true
+  # }
+  # IMPORTANT: The other settings (bucket, region, dynamodb_table, encrypt)
+  # are provided via -backend-config=../../backend.hcl when running terraform init
 }
 
 # Configure the AWS provider to use the us-east-2 region
@@ -58,8 +82,8 @@ resource "aws_db_instance" "example" {
   allocated_storage = 10
 
   # Instance class determines the compute and memory resources
-  # db.t2.micro is eligible for AWS free tier (if account is new)
-  instance_class = "db.t2.micro"
+  # db.t3.micro is eligible for AWS free tier (if account is new)
+  instance_class = "db.t3.micro"
 
   # Skip the final DB snapshot when destroying
   # WARNING: Setting this to true means data loss on destroy!

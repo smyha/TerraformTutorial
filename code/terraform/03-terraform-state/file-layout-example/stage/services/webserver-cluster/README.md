@@ -62,6 +62,180 @@ graph TB
     DB_STATE -->|"Points to"| RDS
 ```
 
+## Cross-Module Dependencies: terraform_remote_state Pattern
+
+### How Web Server Cluster Reads Database Configuration
+
+The web server cluster doesn't directly connect to the database. Instead, it reads the database endpoint and port from the **database's Terraform state file** using the `terraform_remote_state` data source.
+
+This architecture pattern is crucial for:
+- **Decoupling modules**: Database team manages their own configuration
+- **Configuration management**: Database details are automatically updated
+- **Avoiding hardcoding**: No need to manually copy/paste database endpoints
+
+### Architecture: Remote State Data Flow
+
+```mermaid
+graph LR
+    subgraph "Database Module"
+        DB_MAIN["database/<br/>main.tf<br/>resource aws_db_instance"]
+        DB_OUTPUTS["database/<br/>outputs.tf<br/>output address<br/>output port"]
+    end
+
+    subgraph "Database State Storage"
+        S3["S3 Bucket<br/>terraform-state"]
+        S3_FILE["stage/data-stores/mysql/<br/>terraform.tfstate"]
+    end
+
+    subgraph "Web Server Module"
+        WS_MAIN["webserver-cluster/<br/>main.tf<br/>resource aws_launch_configuration"]
+        WS_DATA["webserver-cluster/<br/>main.tf<br/>data terraform_remote_state"]
+    end
+
+    subgraph "Web Server User Data"
+        USER_DATA["user-data.sh<br/>db_address = $${db_address}<br/>db_port = $${db_port}"]
+    end
+
+    subgraph "Running Infrastructure"
+        INSTANCE["EC2 Instance<br/>Running Web Server<br/>Displays DB connection info"]
+    end
+
+    DB_MAIN -->|"Creates"| S3_FILE
+    DB_OUTPUTS -->|"Stored in"| S3_FILE
+    S3_FILE -->|"Stored in"| S3
+
+    WS_DATA -->|"Reads from"| S3_FILE
+    WS_DATA -->|"Extracts"| DB_OUTPUTS
+
+    WS_MAIN -->|"Calls templatefile"| USER_DATA
+    USER_DATA -->|"Injected into"| INSTANCE
+
+    style DB_MAIN fill:#e1f5ff
+    style WS_DATA fill:#fff3e0
+    style S3_FILE fill:#f3e5f5
+```
+
+### Data Source Configuration
+
+The `terraform_remote_state` data source in the web server cluster's `main.tf`:
+
+```hcl
+data "terraform_remote_state" "db" {
+  # Backend type must match where database stores its state
+  backend = "s3"
+
+  config = {
+    # S3 bucket name (same bucket as database state)
+    bucket = var.db_remote_state_bucket
+
+    # Path to database's state file within bucket
+    # Must match the key used by database configuration
+    key = var.db_remote_state_key
+
+    # AWS region where S3 bucket is located
+    region = "us-east-2"
+  }
+}
+```
+
+### Accessing Remote State Outputs
+
+Once the remote state is loaded, you can access any output from the database configuration:
+
+```hcl
+# Access database endpoint
+data.terraform_remote_state.db.outputs.address
+
+# Access database port
+data.terraform_remote_state.db.outputs.port
+```
+
+### Real-World Example: Injecting Database Details into User Data
+
+The web server's `user-data.sh` script uses `templatefile()` to inject database connection details:
+
+```bash
+#!/bin/bash
+cat > index.html <<EOF
+<h1>Hello, World</h1>
+<p>Database Address: ${db_address}</p>
+<p>Database Port: ${db_port}</p>
+<p>Server Port: ${server_port}</p>
+EOF
+
+nohup busybox httpd -f -p ${server_port} &
+EOF
+```
+
+Terraform's `main.tf` calls this template with variables from the remote state:
+
+```hcl
+resource "aws_launch_configuration" "example" {
+  # ... other configuration ...
+
+  # Render user data script as template
+  user_data = templatefile("user-data.sh", {
+    server_port = var.server_port
+
+    # Read from database's remote state
+    db_address = data.terraform_remote_state.db.outputs.address
+    db_port    = data.terraform_remote_state.db.outputs.port
+  })
+}
+```
+
+### Why This Pattern is Powerful
+
+1. **Automatic Updates**: If database endpoint changes, web servers automatically get new address
+2. **No Copy-Paste**: No manual copying of database details between configurations
+3. **Clear Dependencies**: Code explicitly shows web server depends on database
+4. **Separation of Concerns**: Database team manages database, web team manages web servers
+5. **Testable**: Can swap implementations without changing web server code
+
+### Important: State File is Read-Only
+
+The `terraform_remote_state` data source is **read-only**:
+
+```
+✅ Web server cluster CAN read database details
+❌ Web server cluster CANNOT modify database state
+```
+
+This means:
+- No risk of accidentally corrupting database state from web server code
+- Database state is a reliable source of truth
+- Changes must be made in database configuration, not web server configuration
+
+### Prerequisites for This Pattern
+
+1. **Database must be deployed first**
+   ```bash
+   cd stage/data-stores/mysql
+   terraform apply
+   ```
+
+2. **Database must have outputs defined** (`stage/data-stores/mysql/outputs.tf`)
+   ```hcl
+   output "address" {
+     value = aws_db_instance.example.address
+   }
+
+   output "port" {
+     value = aws_db_instance.example.port
+   }
+   ```
+
+3. **Web server variables must reference correct state file location**
+   ```hcl
+   variable "db_remote_state_bucket" {
+     default = "terraform-smyha"
+   }
+
+   variable "db_remote_state_key" {
+     default = "stage/data-stores/mysql/terraform.tfstate"
+   }
+   ```
+
 ### Component Details
 
 #### 1. Application Load Balancer
