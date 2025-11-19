@@ -42,24 +42,23 @@ terraform {
   # using the same partial configuration approach.
   #
   # backend "s3" {
-    # Path within the bucket where THIS MODULE'S state file is stored
-    # Each module must have a UNIQUE key to avoid overwriting other states
-    # key = "global/s3/terraform.tfstate"
+  #   # Path within the bucket where THIS MODULE'S state file is stored
+  #   # Each module must have a UNIQUE key to avoid overwriting other states
+  #   key = "global/s3/terraform.tfstate"
 
-    # IMPORTANT: Variables are not allowed
-    # AWS region where the S3 bucket and DynamoDB table are located
-    #   region         = "us-east-2"
+  #   # IMPORTANT: Variables are not allowed
+  #   # AWS region where the S3 bucket and DynamoDB table are located
+  #   region         = "us-east-2"
   
-    # DynamoDB table name for state locking
-    # This prevents concurrent modifications and ensures data consistency
-    # dynamodb_table = "terraform-table"
+  #   # DynamoDB table name for state locking
+  #   # This prevents concurrent modifications and ensures data consistency
+  #   dynamodb_table = "terraform-table"
   
-    # Enable encryption of state files at rest
-    # This adds a second layer of encryption on top of S3's default encryption
-    # encrypt        = true
-    #  }
-    # The other settings (bucket, region, dynamodb_table, encrypt)
-    # are provided via -backend-config=../backend.hcl when running terraform init
+  #   # Enable encryption of state files at rest
+  #   # This adds a second layer of encryption on top of S3's default encryption
+  #   encrypt        = true
+  # # The other settings (bucket, region, dynamodb_table, encrypt)
+  # # are provided via -backend-config=../backend.hcl when running terraform init
   # }
 }
 

@@ -69,3 +69,14 @@ Clean up when you're done:
 ```
 terraform destroy
 ```
+
+## Architecture (quick view)
+
+```mermaid
+flowchart LR
+  User --> ALB[ALB (port 80)]
+  ALB --> TG[Target Group]
+  TG --> ASG[ASG -> EC2 Instances (module)]
+  ASG --> EC2[EC2 Instances]
+  EC2 --> DB[(MySQL database - separate stack)]
+```
