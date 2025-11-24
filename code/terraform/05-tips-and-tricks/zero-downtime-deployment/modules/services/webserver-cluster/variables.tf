@@ -3,6 +3,37 @@
 # You must provide a value for each of these parameters.
 # ---------------------------------------------------------------------------------------------------------------------
 
+# ============================================================================
+# VARIABLE: cluster_name
+# ============================================================================
+# ⚠️ REFACTORING DANGER ⚠️
+#
+# This variable is used in multiple critical resources:
+#   - aws_lb.example.name (line 122)
+#   - aws_lb_target_group.asg.name (line 146)
+#   - aws_security_group.instance.name (line 97)
+#   - aws_security_group.alb.name (line 179)
+#   - aws_autoscaling_group.example.name (line 33)
+#   - aws_cloudwatch_metric_alarm.*.alarm_name (lines 213, 232)
+#
+# If you change the value of this variable after resources already exist:
+#   - Terraform will try to delete old resources and create new ones
+#   - This will cause DOWNTIME because:
+#     * The ALB will be deleted → No traffic routing
+#     * Security Groups will be deleted → Servers reject traffic
+#     * The Target Group will be deleted → No connection to instances
+#
+# DANGEROUS EXAMPLE:
+#   # Before: cluster_name = "foo"
+#   # After: cluster_name = "bar"
+#   # Result: Terraform deletes all "foo" resources and creates "bar"
+#
+# SOLUTION:
+#   - If you need to change the name, consider creating a new cluster first
+#   - Or use "terraform state mv" to move individual resources
+#   - Or use "moved" blocks for renamed resources
+#   - ALWAYS run "terraform plan" before applying changes
+# ============================================================================
 variable "cluster_name" {
   description = "The name to use for all the cluster resources"
   type        = string

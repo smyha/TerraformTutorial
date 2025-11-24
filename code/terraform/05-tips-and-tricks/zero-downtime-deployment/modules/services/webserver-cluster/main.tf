@@ -21,7 +21,27 @@ resource "aws_launch_configuration" "example" {
     server_text = var.server_text
   })
 
-  # Required when using a launch configuration with an auto scaling group.
+  # ========================================================================
+  # LIFECYCLE: create_before_destroy
+  # ========================================================================
+  # This configuration is CRITICAL to avoid downtime during updates.
+  #
+  # Without create_before_destroy:
+  #   1. Terraform deletes the old launch configuration
+  #   2. The Auto Scaling Group is left without valid configuration
+  #   3. New instances cannot be created
+  #   4. If existing instances fail, there's no replacement
+  #   → Potential DOWNTIME
+  #
+  # With create_before_destroy:
+  #   1. Terraform creates the new launch configuration first
+  #   2. The Auto Scaling Group can continue working with the old one
+  #   3. Once the new one is created, Terraform deletes the old one
+  #   → No downtime
+  #
+  # IMPORTANT: Always use this in critical resources that are referenced
+  # by other resources that cannot function without them.
+  # ========================================================================
   lifecycle {
     create_before_destroy = true
   }
@@ -44,8 +64,29 @@ resource "aws_autoscaling_group" "example" {
   # considering the ASG deployment complete
   min_elb_capacity = var.min_size
 
-  # When replacing this ASG, create the replacement first, and only delete the
-  # original after
+  # ========================================================================
+  # LIFECYCLE: create_before_destroy for Auto Scaling Group
+  # ========================================================================
+  # Zero-downtime deployment strategy for the ASG.
+  #
+  # Flow without create_before_destroy (DANGEROUS):
+  #   1. Terraform deletes the old ASG
+  #   2. All instances are terminated
+  #   3. Service is completely offline
+  #   4. Terraform creates the new ASG
+  #   5. New instances take time to start
+  #   → SIGNIFICANT DOWNTIME
+  #
+  # Flow with create_before_destroy (SAFE):
+  #   1. Terraform creates the new ASG first
+  #   2. New instances start gradually
+  #   3. ALB routes traffic to both versions temporarily
+  #   4. Once new instances are healthy, old ASG is deleted
+  #   → ZERO DOWNTIME
+  #
+  # Combined with min_elb_capacity (line 65), this ensures there are always
+  # enough healthy instances before deleting the old ones.
+  # ========================================================================
   lifecycle {
     create_before_destroy = true
   }
@@ -93,6 +134,33 @@ resource "aws_autoscaling_schedule" "scale_in_at_night" {
   autoscaling_group_name = aws_autoscaling_group.example.name
 }
 
+# ============================================================================
+# SECURITY GROUP: Cluster Instances
+# ============================================================================
+# ⚠️ REFACTORING DANGER ⚠️
+#
+# If you rename the identifier of this resource (e.g., from "instance" to 
+# "cluster_instance"), Terraform will interpret this as deleting the old security group
+# and creating a new one.
+#
+# CONSEQUENCES:
+#   - EC2 instances will lose their security rules
+#   - Network traffic will be rejected until the new security group is created
+#   - Possible service downtime
+#
+# REFERENCED IN:
+#   - aws_launch_configuration.example.security_groups (line 15)
+#   - aws_security_group_rule.allow_server_http_inbound.security_group_id (line 170)
+#
+# IF YOU NEED TO RENAME THIS RESOURCE:
+#   1. Add a "moved" block to automatically update the state:
+#      moved {
+#        from = aws_security_group.instance
+#        to   = aws_security_group.cluster_instance
+#      }
+#   2. Or use: terraform state mv aws_security_group.instance aws_security_group.cluster_instance
+#   3. ALWAYS run "terraform plan" first to verify
+# ============================================================================
 resource "aws_security_group" "instance" {
   name = "${var.cluster_name}-instance"
 }
@@ -118,6 +186,40 @@ data "aws_subnets" "default" {
   }
 }
 
+# ============================================================================
+# APPLICATION LOAD BALANCER (ALB)
+# ============================================================================
+# ⚠️ CRITICAL RESOURCE - DOWNTIME DANGER ⚠️
+#
+# This is one of the most critical resources in the cluster. If deleted, all
+# traffic to the cluster will be interrupted.
+#
+# REFACTORING DANGERS:
+#   1. Changing var.cluster_name:
+#      - If you change the value of cluster_name after deployment, Terraform
+#        will try to delete the old ALB and create a new one
+#      - This will cause DOWNTIME because there will be nothing to route traffic
+#      - The new ALB needs time to initialize
+#
+#   2. Renaming the "example" identifier:
+#      - If you change "aws_lb.example" to "aws_lb.cluster", Terraform will interpret
+#        this as deleting the old ALB and creating a new one
+#      - Use a "moved" block to avoid this
+#
+#   3. Changing immutable parameters:
+#      - The "name" parameter is immutable in AWS
+#      - Any change requires deleting and recreating the resource
+#
+# REFERENCED IN:
+#   - aws_lb_listener.http.load_balancer_arn (line 231)
+#   - aws_lb_listener_rule.asg.listener_arn (line 277)
+#
+# BEST PRACTICES:
+#   - Never change the name after initial deployment
+#   - If you need to change, consider creating a new ALB first
+#   - Always use "terraform plan" before applying changes
+#   - Consider using "create_before_destroy" if you really need to replace it
+# ============================================================================
 resource "aws_lb" "example" {
   name               = var.cluster_name
   load_balancer_type = "application"
@@ -142,6 +244,28 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+# ============================================================================
+# TARGET GROUP for Auto Scaling Group
+# ============================================================================
+# ⚠️ CRITICAL RESOURCE - DOWNTIME DANGER ⚠️
+#
+# This target group connects the ALB with EC2 instances in the Auto Scaling Group.
+# If deleted, the ALB will not be able to route traffic to instances.
+#
+# REFACTORING DANGERS:
+#   - Changing var.cluster_name will cause Terraform to delete and recreate this resource
+#   - The "name" parameter is immutable, any change requires recreation
+#   - During recreation, the ALB will lose its targets and cannot route traffic
+#
+# REFERENCED IN:
+#   - aws_autoscaling_group.example.target_group_arns (line 37)
+#   - aws_lb_listener_rule.asg.action.target_group_arn (line 288)
+#
+# BEST PRACTICES:
+#   - Don't change the name after initial deployment
+#   - If you need to change, create the new target group first
+#   - Use "terraform plan" to verify impacts before applying
+# ============================================================================
 resource "aws_lb_target_group" "asg" {
   name     = var.cluster_name
   port     = var.server_port
@@ -175,6 +299,28 @@ resource "aws_lb_listener_rule" "asg" {
   }
 }
 
+# ============================================================================
+# SECURITY GROUP: Application Load Balancer
+# ============================================================================
+# ⚠️ REFACTORING DANGER ⚠️
+#
+# Security group for the ALB. If deleted, the ALB will lose its security rules
+# and will not be able to receive HTTP traffic.
+#
+# DANGERS:
+#   - Changing var.cluster_name will cause recreation of the security group
+#   - Renaming the "alb" identifier requires using a "moved" block
+#   - During recreation, the ALB will lose its security rules
+#
+# REFERENCED IN:
+#   - aws_lb.example.security_groups (line 227)
+#   - aws_security_group_rule.allow_http_inbound.security_group_id (line 310)
+#   - aws_security_group_rule.allow_all_outbound.security_group_id (line 320)
+#
+# BEST PRACTICES:
+#   - Use "moved" blocks if renaming the identifier
+#   - Always verify with "terraform plan" before applying
+# ============================================================================
 resource "aws_security_group" "alb" {
   name = "${var.cluster_name}-alb"
 }
