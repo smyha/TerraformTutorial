@@ -1,3 +1,19 @@
+/*
+ * EKS cluster module
+ *
+ * This module is reused by the multi-account and multi-region examples in
+ * Chapter 7. To keep the focus on provider configuration, the actual cluster
+ * resources are intentionally simple:
+ *   1. Create a control plane with the default VPC/subnets (fine for demos).
+ *   2. Create managed node groups with pluggable scaling config.
+ *   3. Wire the required IAM roles and policies with explicit depends_on so
+ *      cross-account deletes don't fail.
+ *
+ * NOTE: In real workloads you would probably parameterize VPC/subnet IDs,
+ * bootstrap scripts, and security groups. Here we keep those fixed to avoid
+ * distracting from the provider-alias patterns.
+ */
+
 terraform {
   required_version = ">= 1.0.0, < 2.0.0"
 

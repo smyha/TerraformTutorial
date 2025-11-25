@@ -1,3 +1,13 @@
+/*
+ * Simple Kubernetes app module.
+ *
+ * This module intentionally sticks to first-party Kubernetes provider resources
+ * so Chapter 7 can show how different providers (AWS for EKS, Kubernetes for
+ * workloads) can be orchestrated from one Terraform root module. The deployment
+ * and service wiring are minimal but production-ready patterns can extend from
+ * here (e.g., add HPAs, ConfigMaps, TLS).
+ */
+
 terraform {
   required_version = ">= 1.0.0, < 2.0.0"
 
