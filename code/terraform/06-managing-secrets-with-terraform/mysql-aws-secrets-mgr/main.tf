@@ -31,7 +31,9 @@ resource "aws_db_instance" "example" {
   skip_final_snapshot = true
   db_name             = var.db_name
 
-  # Pass the secrets to the resource
+  # Pass the secrets to the resource. Secrets Manager keeps the source of truth,
+  # but once values land here they will be stored in the Terraform plan/state, so
+  # remember to encrypt and tightly control access to those artifacts as well.
   username = local.db_creds.username
   password = local.db_creds.password
 }

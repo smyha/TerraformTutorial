@@ -20,6 +20,11 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
   thumbprint_list = [
     data.tls_certificate.github.certificates[0].sha1_fingerprint
   ]
+
+  # Using OIDC lets GitHub Actions exchange short-lived web identity tokens
+  # for AWS credentials, so no long-lived secrets need to live in the CI
+  # system. This directly addresses the \"avoid manually managing credentials\"
+  # and \"avoid permanent credentials\" goals from Table 6-2.
 }
 
 # Fetch GitHub's OIDC thumbprint
@@ -31,6 +36,10 @@ data "tls_certificate" "github" {
 resource "aws_iam_role" "instance" {
   name_prefix        = var.name
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+
+  # Give the role a purpose-specific name prefix so it is easy to audit which
+  # GitHub workflows are allowed to assume it and rotate policies when repos
+  # or branches change.
 }
 
 # Allow the IAM role to be assumed by specific GitHub repos
@@ -53,6 +62,10 @@ data "aws_iam_policy_document" "assume_role_policy" {
         for a in var.allowed_repos_branches :
         "repo:${a["org"]}/${a["repo"]}:ref:refs/heads/${a["branch"]}"
       ]
+
+      # TIP: keep the allowed list tight so compromised repos cannot mint
+      # credentials. Consider using additional conditions (aud, repository_owner)
+      # for prod environments.
     }
   }
 }

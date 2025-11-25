@@ -18,6 +18,11 @@ data "aws_kms_secrets" "creds" {
     name    = "db"
     payload = file("${path.module}/db-creds.yml.encrypted")
   }
+
+  # NOTE: aws_kms_secrets decrypts data only in memory. Keep the encrypted file
+  # (`db-creds.yml.encrypted`) in version control, but ensure the plain-text
+  # source material (`db-creds.yml`) never touches git. Rotate the CMK regularly
+  # if multiple services share it, and audit IAM permissions for decrypt calls.
 }
 
 locals {
@@ -32,7 +37,9 @@ resource "aws_db_instance" "example" {
   skip_final_snapshot = true
   db_name             = var.db_name
 
-  # Pass the secrets to the resource
+  # Pass the secrets to the resource. Terraform state now contains these values,
+  # so make sure you encrypt the state file (e.g., S3 SSE + DynamoDB KMS) and
+  # restrict who can read it, as recommended in Chapter 6.
   username = local.db_creds.username
   password = local.db_creds.password
 }

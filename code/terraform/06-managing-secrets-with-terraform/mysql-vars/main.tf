@@ -22,7 +22,10 @@ resource "aws_db_instance" "example" {
   skip_final_snapshot = true
   db_name             = var.db_name
 
-  # Pass the secrets to the resource
+  # WARNING: Storing credentials directly in variables ties secrets to the codebase.
+  # Make sure var.db_username and var.db_password come from a secure channel
+  # (e.g., environment variables injected by a per-user secrets manager) so that
+  # you never commit plain-text secrets to version control.
   username = var.db_username
   password = var.db_password
 }
