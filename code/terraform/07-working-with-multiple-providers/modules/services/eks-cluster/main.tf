@@ -126,7 +126,7 @@ resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
 }
 
 # Since this code is only for testing and learning, use the Default VPC and subnets.
-# For real-world use cases, you should use a custom VPC and private subnets.
+# IMPORTANT: For real-world use cases, you should use a custom VPC and private subnets.
 
 data "aws_vpc" "default" {
   default = true

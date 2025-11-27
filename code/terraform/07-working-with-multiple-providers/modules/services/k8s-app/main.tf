@@ -25,6 +25,11 @@ locals {
   }
 }
 
+
+# Metadata: Just as with the Deployment object, service object uses
+#  metadata to identiy and target that object in API calls
+
+
 # Create a simple Kubernetes Deployment to run an app
 resource "kubernetes_deployment" "app" {
   metadata {
@@ -73,12 +78,18 @@ resource "kubernetes_service" "app" {
   }
 
   spec {
-    type = "LoadBalancer"
+    type = "LoadBalancer"                   # Elastic LB , Cloud LB, etc depending on cloud provider
     port {
-      port        = 80
+      port        = 80                      # Listening port on LB
       target_port = var.container_port
       protocol    = "TCP"
     }
-    selector = local.pod_labels
+
+    # Just as with the Deployment object, he Service object uses a selector to
+    # specify what that Service should be targeting. By setting the selector to
+    # pod_labels , the Service and the Deployment will both operate on
+    # the same P
+
+    selector = local.pod_labels             
   }
 }
