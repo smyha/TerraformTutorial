@@ -52,11 +52,20 @@ azure-networking-tutorial/
 │   ├── multi-tier-app/        # Multi-tier application
 │   ├── hybrid-connectivity/   # Hybrid connectivity (VPN/ExpressRoute)
 │   └── global-distribution/   # Global distribution (CDN/Front Door)
-├── live/                      # Production-ready configurations
+├── live/                      # Terragrunt configurations (Production-ready)
 │   ├── stage/                # Staging environment
+│   │   ├── terragrunt.hcl    # Root config for stage
+│   │   ├── networking/vnet/  # VNet configuration
+│   │   ├── load-balancer/    # Load Balancer configuration
+│   │   ├── firewall/         # Firewall configuration
+│   │   ├── nat-gateway/      # NAT Gateway configuration
+│   │   └── bastion/          # Bastion configuration
 │   └── prod/                 # Production environment
+│       ├── terragrunt.hcl    # Root config for prod
+│       └── networking/vnet/  # VNet configuration
 └── docs/                      # Comprehensive documentation
     ├── AZURE_NETWORKING_COMPLETE_GUIDE.md
+    ├── TERRAGRUNT_GUIDE.md   # Terragrunt setup, imports, and moves
     └── [Service-specific guides]
 ```
 
@@ -171,6 +180,42 @@ Comprehensive guide covering:
 - Terraform examples
 - Comparison tables
 
+### Terragrunt Guide (`docs/TERRAGRUNT_GUIDE.md`)
+
+Complete guide for managing infrastructure with Terragrunt:
+- Setting up Terragrunt for Azure Networking
+- Managing multiple environments (stage/prod)
+- **Importing existing resources** - Step-by-step examples for each resource type
+- **Moving resources** - Examples for reorganizing infrastructure
+- Dependency management
+- Best practices and troubleshooting
+
+**Key Features:**
+- Import examples for VNet, Subnets, NSGs, Load Balancer, Firewall, NAT Gateway, Bastion
+- Move examples for refactoring and reorganization
+- Scripts for automating imports and moves
+- Troubleshooting common issues
+
+### Enterprise Security Integrations (`docs/ENTERPRISE_SECURITY_INTEGRATIONS.md`)
+
+Comprehensive guide for enterprise security integrations:
+- **ExpressRoute Integration** - Private connectivity architecture
+- **Colt Technology Services** - Enterprise ExpressRoute connectivity provider
+- **CyberArk Integration** - Privileged Access Management (PAM) with Azure
+- **Zero Trust Network Access (ZTNA)** - Azure AD and Application Proxy integration
+- **Dual NAT Firewall Architecture** - Network isolation between production and staging
+- Complete enterprise architecture diagrams
+- Terraform implementation examples
+- Best practices for each integration
+
+**Key Features:**
+- Detailed architecture diagrams (Mermaid) for each integration
+- Colt ExpressRoute services (On Demand, Dedicated Cloud Access, SD-WAN)
+- CyberArk integration with Azure Bastion and Key Vault
+- ZTNA implementation with Azure AD Conditional Access
+- Dual NAT firewall configuration examples
+- Traffic flow sequences for all scenarios
+
 ### Service-Specific Documentation
 
 Each module includes detailed documentation:
@@ -188,6 +233,41 @@ Each module includes detailed documentation:
 - Azure subscription with appropriate permissions
 
 ### Quick Start
+
+#### Option 1: Using Terragrunt (Recommended)
+
+1. **Clone or navigate to this directory:**
+   ```bash
+   cd azure-networking-tutorial
+   ```
+
+2. **Set up environment variables:**
+   ```bash
+   export TF_STATE_STORAGE_ACCOUNT_NAME="myterraformstate"
+   export TF_STATE_RESOURCE_GROUP_NAME="rg-terraform-state"
+   export TF_STATE_CONTAINER_NAME="terraform-state"
+   export TF_STATE_KEY="stage"
+   export TF_VAR_location="eastus"
+   ```
+
+3. **Authenticate with Azure:**
+   ```bash
+   az login
+   az account set --subscription "Your Subscription ID"
+   ```
+
+4. **Deploy with Terragrunt:**
+   ```bash
+   cd live/stage/networking/vnet
+   terragrunt init
+   terragrunt plan
+   terragrunt apply
+   ```
+
+5. **Review the Terragrunt documentation:**
+   - [Terragrunt Guide](docs/TERRAGRUNT_GUIDE.md) - Complete guide with import/move examples
+
+#### Option 2: Using Terraform Directly
 
 1. **Clone or navigate to this directory:**
    ```bash

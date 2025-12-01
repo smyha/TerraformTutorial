@@ -29,12 +29,22 @@ variable "application_gateway_name" {
   type        = string
 }
 
+/**
+* SKU name is the name of the SKU of the Application Gateway.
+* It is used to specify the SKU of the Application Gateway.
+* The SKU is the name of the SKU of the Application Gateway.
+*/
 variable "sku_name" {
   description = "SKU name. Options: 'Standard_Small', 'Standard_Medium', 'Standard_Large', 'Standard_v2', 'WAF_Medium', 'WAF_Large', 'WAF_v2'"
   type        = string
   default     = "Standard_v2"
 }
 
+/**
+* SKU tier is the tier of the SKU of the Application Gateway.
+* It is used to specify the tier of the SKU of the Application Gateway.
+* The tier is the tier of the SKU of the Application Gateway.
+*/
 variable "sku_tier" {
   description = "SKU tier. Options: 'Standard', 'Standard_v2', 'WAF', 'WAF_v2'"
   type        = string
@@ -46,6 +56,11 @@ variable "sku_tier" {
   }
 }
 
+/**
+* SKU capacity is the capacity of the SKU of the Application Gateway.
+* It is used to specify the capacity of the SKU of the Application Gateway.
+* The capacity is the capacity of the SKU of the Application Gateway.
+*/
 variable "sku_capacity" {
   description = "Number of instances (1-125). For autoscaling, set to null."
   type        = number
@@ -337,6 +352,10 @@ variable "ssl_certificates" {
   default = []
 }
 
+/**
+* WAF configuration is a feature of the Application Gateway that allows you to configure the Web Application Firewall (WAF) for the Application Gateway.
+* It is used to protect your web applications from common vulnerabilities and exploits.
+*/
 variable "waf_configuration" {
   description = <<-EOT
     WAF configuration (only for WAF SKU).
