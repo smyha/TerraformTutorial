@@ -233,7 +233,7 @@ graph TB
 1. **Round Robin**: Even distribution (default)
 2. **Source IP Affinity**: Sticky sessions (5-tuple hash)
 
-#### Terraform Example
+#### Load Balancer Terraform Example
 
 ```hcl
 module "load_balancer" {
@@ -304,7 +304,7 @@ graph TB
     AppGW --> Host[Host-based Routing]
 ```
 
-#### Key Features
+#### Application Gateway Capabilities
 
 - **Layer 7 Load Balancing**: HTTP/HTTPS
 - **SSL/TLS Termination**: Offload SSL processing
@@ -314,7 +314,7 @@ graph TB
 - **Redirection**: HTTP to HTTPS redirection
 - **Session Affinity**: Cookie-based affinity
 
-#### SKU Comparison
+#### Application Gateway SKU Comparison
 
 | Feature | Standard | WAF | Standard_v2 | WAF_v2 |
 |---------|----------|-----|-------------|--------|
@@ -414,6 +414,160 @@ graph TB
 1. **Network Rules**: Filter by IP, port, protocol
 2. **Application Rules**: Filter by FQDN
 3. **NAT Rules**: Destination NAT (DNAT)
+
+#### Understanding SNAT and DNAT in Azure Firewall
+
+**NAT (Network Address Translation)** is a fundamental networking concept that allows devices to modify IP addresses in network packets. Azure Firewall uses NAT for different purposes depending on the direction of traffic.
+
+#### SNAT (Source NAT) - Outbound Traffic
+
+SNAT, or Source NAT, is used when resources in a private network need to access the Internet. The firewall modifies the **source IP address** of outbound packets, replacing the private IP with a public IP.
+
+**How SNAT Works:**
+
+1. A VM with private IP `10.0.1.10` wants to access `api.github.com`
+2. The VM sends a packet with:
+   - Source IP: `10.0.1.10` (private)
+   - Destination IP: `140.82.121.3` (public)
+3. Azure Firewall receives the packet and performs SNAT:
+   - Changes source IP from `10.0.1.10` to `20.1.2.5` (Firewall's public IP)
+   - Maintains a connection table to track the translation
+4. The external server receives the packet and sees it coming from `20.1.2.5`
+5. When the server responds, the firewall reverses the translation:
+   - Changes destination IP from `20.1.2.5` back to `10.0.1.10`
+   - Forwards the response to the VM
+
+**SNAT in Azure:**
+
+- **Azure Firewall**: Provides SNAT for outbound traffic from VMs in the VNet
+- **NAT Gateway**: Specialized service for outbound SNAT (recommended for high-scale scenarios)
+- **Load Balancer Outbound Rules**: Provides SNAT for backend pools
+
+**Use Cases for SNAT:**
+
+- VMs without public IPs need to download updates from the Internet
+- Applications need to call external APIs
+- VMs need to access Azure services (though Private Link is preferred)
+- Outbound connectivity for container workloads
+
+#### DNAT (Destination NAT) - Inbound Traffic
+
+DNAT, or Destination NAT, is used when you want to expose internal services to the Internet. The firewall modifies the **destination IP address** of inbound packets, translating from a public IP to a private IP.
+
+**How DNAT Works:**
+
+1. An external client wants to access a web server at `20.1.2.5:80` (Firewall's public IP)
+2. The client sends a packet with:
+   - Source IP: Client's public IP
+   - Destination IP: `20.1.2.5:80` (Firewall's public IP)
+3. Azure Firewall receives the packet and performs DNAT:
+   - Changes destination IP from `20.1.2.5` to `10.0.1.10` (internal web server)
+   - Optionally changes destination port (e.g., `80` → `8080`)
+   - Maintains a connection table
+4. The internal web server receives the packet and sees it coming from the client
+5. When the server responds, the firewall reverses the translation:
+   - Changes source IP from `10.0.1.10` back to `20.1.2.5`
+   - Forwards the response to the external client
+
+**DNAT in Azure Firewall:**
+
+- Configured via **NAT Rule Collections** in Azure Firewall
+- Allows exposing internal services securely
+- Can perform port translation (e.g., external port 80 → internal port 8080)
+
+**Use Cases for DNAT:**
+
+- Expose internal web servers to the Internet
+- Port forwarding for specific services
+- Expose APIs hosted on private VMs
+- Provide secure access to internal applications
+
+#### SNAT vs DNAT Comparison
+
+| Aspect | SNAT (Source NAT) | DNAT (Destination NAT) |
+|--------|-------------------|------------------------|
+| **Direction** | Outbound (from private to public) | Inbound (from public to private) |
+| **What Changes** | Source IP address | Destination IP address |
+| **Purpose** | Allow private resources to access Internet | Expose private services to Internet |
+| **Azure Service** | NAT Gateway, Load Balancer Outbound, Firewall | Azure Firewall NAT Rules |
+| **Use Case** | VMs downloading updates, calling APIs | Web servers, APIs exposed to Internet |
+
+**SNAT and DNAT Architecture:**
+
+```mermaid
+graph TB
+    subgraph "Private Network (10.0.0.0/16)"
+        VM1[VM 1<br/>10.0.1.10<br/>No Public IP]
+        WebServer[Web Server<br/>10.0.1.20<br/>Port 8080]
+    end
+    
+    subgraph "Azure Firewall"
+        Firewall[Azure Firewall<br/>Public IP: 20.1.2.5]
+        SNATRule[SNAT Rule<br/>Outbound Traffic]
+        DNATRule[DNAT Rule<br/>20.1.2.5:80 → 10.0.1.20:8080]
+    end
+    
+    subgraph "Internet"
+        ExternalAPI[External API<br/>api.example.com]
+        InternetUser[Internet User]
+    end
+    
+    VM1 -->|1. Outbound Request<br/>Source: 10.0.1.10| Firewall
+    Firewall -->|2. SNAT: Change Source<br/>Source: 20.1.2.5| SNATRule
+    SNATRule -->|3. Forward| ExternalAPI
+    ExternalAPI -->|4. Response to 20.1.2.5| Firewall
+    Firewall -->|5. Reverse SNAT<br/>Dest: 10.0.1.10| VM1
+    
+    InternetUser -->|6. Inbound Request<br/>Dest: 20.1.2.5:80| Firewall
+    Firewall -->|7. DNAT: Change Destination<br/>Dest: 10.0.1.20:8080| DNATRule
+    DNATRule -->|8. Forward| WebServer
+    WebServer -->|9. Response| Firewall
+    Firewall -->|10. Reverse DNAT<br/>Source: 20.1.2.5| InternetUser
+```
+
+**SNAT Flow Sequence:**
+
+```mermaid
+sequenceDiagram
+    participant VM as VM (Private IP)
+    participant Firewall as Azure Firewall
+    participant Internet as Internet Service
+    
+    VM->>Firewall: 1. Outbound Request<br/>Source: 10.0.1.10:50000<br/>Dest: 203.0.113.10:443
+    Firewall->>Firewall: 2. SNAT Translation<br/>Source: 20.1.2.5:1024<br/>Dest: 203.0.113.10:443<br/>Store in Connection Table
+    Firewall->>Internet: 3. Forward Request<br/>(Source appears as 20.1.2.5)
+    Internet->>Firewall: 4. Response<br/>Source: 203.0.113.10:443<br/>Dest: 20.1.2.5:1024
+    Firewall->>Firewall: 5. Reverse SNAT<br/>Lookup Connection Table<br/>Dest: 10.0.1.10:50000
+    Firewall->>VM: 6. Forward Response
+```
+
+**DNAT Flow Sequence:**
+
+```mermaid
+sequenceDiagram
+    participant Client as Internet Client
+    participant Firewall as Azure Firewall
+    participant Server as Internal Server
+    
+    Client->>Firewall: 1. Inbound Request<br/>Source: Client IP:50000<br/>Dest: 20.1.2.5:80
+    Firewall->>Firewall: 2. DNAT Translation<br/>Source: Client IP:50000<br/>Dest: 10.0.1.20:8080<br/>Store in Connection Table
+    Firewall->>Server: 3. Forward Request<br/>(Dest appears as 10.0.1.20:8080)
+    Server->>Firewall: 4. Response<br/>Source: 10.0.1.20:8080<br/>Dest: Client IP:50000
+    Firewall->>Firewall: 5. Reverse DNAT<br/>Lookup Connection Table<br/>Source: 20.1.2.5:80
+    Firewall->>Client: 6. Forward Response<br/>(Source appears as 20.1.2.5)
+```
+
+**Best Practices:**
+
+1. **Use NAT Gateway for SNAT**: For high-scale outbound scenarios, use NAT Gateway instead of Firewall SNAT
+2. **Minimize DNAT Rules**: Only expose necessary services to reduce attack surface
+3. **Port Translation**: Use DNAT port translation to avoid conflicts (e.g., external 80 → internal 8080)
+4. **Connection Tracking**: Both SNAT and DNAT maintain connection tables - ensure firewall has sufficient capacity
+5. **Security Rules**: Apply Network and Application rules in addition to NAT rules for defense in depth
+
+**Reference:** For more information on SNAT and DNAT concepts, see [SNAT y DNAT: Cuándo usar cada uno en un firewall](https://juncotic.com/snat-y-dnat-cuando-usar-cada-uno-en-un-firewall/)
+
+---
 
 #### SKU Comparison
 
@@ -699,19 +853,19 @@ graph TB
     NW --> NSGFlow[NSG Flow Logs]
 ```
 
-#### Key Features
+#### Network Watcher Features
 
 1. **Topology**: Visualize network resources
 2. **Connection Monitor**: Monitor connectivity
 3. **Packet Capture**: Capture network packets
 4. **IP Flow Verify**: Test if traffic is allowed
-5. **Next Hop**: Determine routing path
+5. **Next Hop Analysis**: Determine routing path
 6. **VPN Troubleshoot**: Diagnose VPN issues
 7. **NSG Flow Logs**: Log network traffic
 
 ---
 
-## Best Practices
+## Azure Networking Best Practices
 
 ### Network Design
 
@@ -775,4 +929,3 @@ graph TB
 This guide provides a comprehensive overview of Azure networking services. Each service has specific use cases and should be selected based on your requirements.
 
 For detailed implementation examples, see the module documentation and example configurations in this repository.
-
