@@ -275,6 +275,24 @@ This section maps each Azure networking service to its exact code location and i
 - **DNS resolution**: Provides DNS name resolution for resources in the VNet
 - **Service integration**: Allows connecting Azure services via service endpoints
 
+**DNS and Name Resolution:**
+
+DNS is crucial for Virtual Networks as it enables resources to communicate using friendly names instead of IP addresses. Azure provides built-in DNS resolution for resources within a VNet.
+
+**How DNS works in VNets:**
+- **Default DNS**: Azure automatically provides DNS resolution (168.63.129.16) for resources in the VNet
+- **Automatic registration**: VMs automatically register their hostnames with Azure DNS
+- **Private DNS zones**: You can use Azure Private DNS zones for custom domain names within the VNet
+- **Custom DNS servers**: You can configure custom DNS servers for hybrid scenarios or specific requirements
+
+**Use Cases:**
+1. **Internal Service Discovery**: VMs can resolve each other by hostname (e.g., `web-vm-01` instead of `10.0.1.5`)
+2. **Hybrid Connectivity**: Configure custom DNS servers to resolve on-premises resources (e.g., `internal-app.company.local`)
+3. **Private DNS Zones**: Create custom domains for internal services (e.g., `app.internal`, `db.internal`)
+4. **Service Integration**: Azure services like Storage Accounts and SQL Databases can be accessed via their service endpoints with DNS resolution
+
+**Example Scenario**: In a multi-tier application, the web tier needs to connect to the database. Instead of hardcoding IP addresses, you can use DNS names like `mysql-db.internal` which resolves to the database's private IP. This makes the infrastructure more maintainable and resilient to IP changes.
+
 **Implementation:**
 - **Module**: `modules/networking/`
 - **File**: `modules/networking/main.tf`
@@ -375,6 +393,23 @@ This section maps each Azure networking service to its exact code location and i
 - **Port forwarding**: Allows direct access to specific VMs via NAT rules
 - **Load balancing**: Distributes traffic evenly (round-robin or source IP-based)
 
+**DNS and Name Resolution:**
+
+While Load Balancer operates at Layer 4 (TCP/UDP) and primarily uses IP addresses, DNS is still important for making the load balancer accessible via friendly names.
+
+**How DNS works with Load Balancer:**
+- **Public IP DNS name**: Azure automatically assigns a DNS name to public IPs (e.g., `mylb.eastus.cloudapp.azure.com`)
+- **Custom domain**: You can create a CNAME record pointing your custom domain to the Load Balancer's DNS name
+- **Internal Load Balancer**: For internal load balancers, you can use Azure Private DNS zones to create custom names
+
+**Use Cases:**
+1. **Public-Facing Applications**: Map a custom domain (e.g., `api.example.com`) to the Load Balancer's public IP DNS name
+2. **Internal Service Discovery**: Use Private DNS zones to create friendly names for internal load balancers (e.g., `internal-api.internal`)
+3. **Multi-Region Deployments**: Use DNS with Traffic Manager to route traffic to different Load Balancers in different regions
+4. **SSL/TLS Certificates**: DNS validation is required for SSL certificates when using custom domains
+
+**Example Scenario**: You have a public-facing API behind a Load Balancer. Instead of users accessing `20.1.2.3:443`, you configure DNS so `api.yourcompany.com` resolves to the Load Balancer's public IP. This provides a professional interface and allows you to change the IP address without affecting users.
+
 **Implementation:**
 - **Module**: `modules/load-balancer/`
 - **File**: `modules/load-balancer/main.tf`
@@ -401,6 +436,29 @@ This section maps each Azure networking service to its exact code location and i
 - **Centralization**: Centralizes network security policy in one place
 - **High availability**: Provides built-in high availability without additional configuration
 
+**DNS and Name Resolution:**
+
+DNS is critical for Azure Firewall, especially for application rules that filter traffic based on FQDNs (Fully Qualified Domain Names). The firewall must be able to resolve DNS names to apply application rules correctly.
+
+**How DNS works with Azure Firewall:**
+- **DNS Resolution**: Azure Firewall uses DNS to resolve FQDNs in application rules (e.g., `*.microsoft.com`, `api.github.com`)
+- **Custom DNS Servers**: You can configure custom DNS servers for the firewall to use specific DNS resolution (e.g., on-premises DNS, Azure Private DNS)
+- **DNS Proxy**: Azure Firewall can act as a DNS proxy, forwarding DNS queries from VMs to configured DNS servers
+- **DNS Filtering**: Application rules filter traffic based on resolved FQDNs, not IP addresses
+
+**Use Cases:**
+1. **FQDN-Based Filtering**: Allow or deny access to specific websites/services by domain name (e.g., allow `*.blob.core.windows.net` but deny `*.malicious-site.com`)
+2. **Hybrid DNS Resolution**: Configure custom DNS servers to resolve on-premises resources (e.g., `internal-server.company.local`)
+3. **Private DNS Integration**: Use Azure Private DNS zones for internal service resolution through the firewall
+4. **Security Policies**: Enforce policies like "only allow access to approved SaaS services" using FQDN filtering
+
+**Example Scenario**: Your organization wants to allow access to Azure Storage but block access to public cloud storage services. You create an application rule allowing `*.blob.core.windows.net` (Azure Storage) while denying other storage FQDNs. The firewall uses DNS to resolve these FQDNs and applies the rules accordingly. If DNS resolution fails, the firewall cannot apply FQDN-based rules effectively.
+
+**Important Considerations:**
+- **DNS Server Availability**: If custom DNS servers are unreachable, FQDN-based application rules may fail
+- **DNS Caching**: The firewall caches DNS resolutions, so IP changes may take time to propagate
+- **Private IP Ranges**: Traffic to private IP ranges (configured in `private_ip_ranges`) bypasses the firewall, including DNS resolution
+
 **Implementation:**
 - **Module**: `modules/firewall/`
 - **File**: `modules/firewall/main.tf`
@@ -425,6 +483,23 @@ This section maps each Azure networking service to its exact code location and i
 - **No VPN needed**: Access VMs from anywhere without VPN
 - **Compliance**: Helps meet security requirements by eliminating public exposure
 - **Simplified management**: Centralized VM access management
+
+**DNS and Name Resolution:**
+
+DNS is important for Azure Bastion as it provides the FQDN that users connect to, and it helps identify VMs by name rather than IP addresses.
+
+**How DNS works with Azure Bastion:**
+- **Bastion FQDN**: Azure automatically assigns a DNS name to the Bastion host (e.g., `mybastion.bastion.azure.com`)
+- **VM Name Resolution**: When connecting to VMs, you can use their hostname or private IP address
+- **Custom Domains**: You can use custom domains with Bastion, though the primary access is through Azure Portal
+
+**Use Cases:**
+1. **VM Discovery**: Use DNS names to identify VMs instead of remembering IP addresses (e.g., `web-server-01` instead of `10.0.1.10`)
+2. **Automation**: Scripts can use DNS names to connect to VMs via Bastion programmatically
+3. **Documentation**: DNS names make documentation and runbooks more readable and maintainable
+4. **Multi-VNet Scenarios**: When Bastion is in a hub VNet, DNS helps identify VMs in spoke VNets
+
+**Example Scenario**: Your operations team needs to access multiple VMs across different subnets. Instead of maintaining a spreadsheet of IP addresses, they use DNS names like `prod-web-01`, `prod-db-01`, etc. This makes it easier to identify and connect to the correct VM, especially in large environments with hundreds of VMs.
 
 **Implementation:**
 - **Module**: `modules/bastion/`
@@ -464,6 +539,29 @@ This section maps each Azure networking service to its exact code location and i
 - **Network simplification**: No need to configure NSG rules for service IP ranges
 - **Reduced exposure**: Services are not exposed to the Internet
 - **Compliance**: Helps meet security and compliance requirements
+
+**DNS and Name Resolution:**
+
+DNS is fundamental to Azure Private Link. When you create a private endpoint, Azure automatically creates a private DNS zone or updates an existing one to resolve the service's public DNS name to the private IP address.
+
+**How DNS works with Private Link:**
+- **Automatic DNS Integration**: Azure automatically creates DNS A records in a Private DNS zone when you create a private endpoint
+- **Private DNS Zones**: Azure manages Private DNS zones (e.g., `privatelink.blob.core.windows.net`) that map service names to private IPs
+- **DNS Resolution**: When a resource in your VNet queries the service's DNS name, it resolves to the private IP instead of the public IP
+- **Zone Integration**: Private DNS zones are automatically linked to your VNet for seamless resolution
+
+**Use Cases:**
+1. **Seamless Service Access**: Applications continue using the same DNS names (e.g., `mystorageaccount.blob.core.windows.net`) but traffic goes over private connectivity
+2. **No Code Changes**: Existing applications don't need code changes - DNS resolution automatically routes to private endpoints
+3. **Multi-VNet Access**: Multiple VNets can use the same Private DNS zone to access services privately
+4. **Hybrid Scenarios**: On-premises resources can resolve Azure services via Private DNS zones when connected via VPN/ExpressRoute
+
+**Example Scenario**: You have a Storage Account that your VMs need to access. Instead of using the public endpoint (which goes over the Internet), you create a private endpoint. Azure automatically updates DNS so `mystorageaccount.blob.core.windows.net` resolves to the private IP (e.g., `10.0.1.100`) instead of the public IP. Your VMs continue using the same DNS name, but all traffic stays on Azure's private backbone network, improving security and performance.
+
+**Important Considerations:**
+- **DNS Zone Management**: Azure automatically manages Private DNS zones, but you can also use custom DNS zones
+- **Resolution Priority**: Private DNS zones take precedence over public DNS resolution within the VNet
+- **Cross-VNet Resolution**: Resources in different VNets need the Private DNS zone linked to their VNet to resolve correctly
 
 **Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
 - **Implementation**: Requires `azurerm_private_endpoint` and `azurerm_private_link_service` resources
@@ -518,6 +616,24 @@ This section maps each Azure networking service to its exact code location and i
 - **VNet-to-VNet connection**: Connects Azure virtual networks to each other
 - **Hybrid connectivity**: Integrates on-premises infrastructure with cloud resources
 - **Encryption**: All traffic is encrypted via VPN protocols (IPsec/IKE)
+
+**DNS and Name Resolution:**
+
+DNS is crucial for VPN Gateway scenarios, especially for hybrid connectivity where on-premises resources need to resolve Azure resources and vice versa.
+
+**How DNS works with VPN Gateway:**
+- **DNS Forwarding**: VPN Gateway can forward DNS queries between on-premises and Azure
+- **Custom DNS**: You can configure custom DNS servers in the VNet that on-premises resources can query
+- **Split-Brain DNS**: Different DNS resolution for the same domain name depending on where the query originates
+- **DNS Suffix**: Configure DNS suffixes so resources can resolve using short names
+
+**Use Cases:**
+1. **Hybrid Name Resolution**: On-premises servers need to resolve Azure VMs by name (e.g., `azure-vm-01.internal`)
+2. **Azure to On-Premises**: Azure resources need to resolve on-premises servers (e.g., `onprem-server.company.local`)
+3. **Active Directory Integration**: Integrate with on-premises Active Directory DNS for seamless domain resolution
+4. **Service Discovery**: Applications spanning on-premises and Azure can discover services using DNS
+
+**Example Scenario**: Your on-premises application needs to connect to a database in Azure. Instead of hardcoding the Azure VM's IP address, you configure DNS forwarding so `azure-db.company.local` resolves correctly from on-premises. Similarly, Azure VMs can resolve `onprem-app.company.local`. This creates a unified DNS namespace across your hybrid infrastructure.
 
 **Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
 - **Directory**: `modules/vpn-gateway/` (structure exists)
@@ -609,6 +725,29 @@ This section maps each Azure networking service to its exact code location and i
 - **SSL termination**: Terminates SSL at the edge
 - **Intelligent routing**: Routes to the nearest and healthiest region
 
+**DNS and Name Resolution:**
+
+DNS is the foundation of Azure Front Door. Front Door is a DNS-based service that routes traffic globally based on DNS resolution and intelligent routing algorithms.
+
+**How DNS works with Azure Front Door:**
+- **DNS-Based Routing**: Front Door uses DNS to route users to the nearest healthy endpoint
+- **CNAME Configuration**: You create a CNAME record pointing your domain to Front Door's DNS name (e.g., `yourdomain.com` → `yourdomain.azurefd.net`)
+- **Global DNS Resolution**: Front Door's DNS infrastructure resolves queries from edge locations worldwide
+- **Health-Based Routing**: DNS responses are dynamically updated based on backend health and performance
+
+**Use Cases:**
+1. **Global Load Balancing**: DNS automatically routes users to the nearest healthy region (e.g., US users → US East, EU users → West Europe)
+2. **Failover**: If a region becomes unhealthy, DNS automatically routes traffic to healthy regions
+3. **Custom Domains**: Point multiple custom domains to Front Door for different applications or regions
+4. **CDN Integration**: DNS resolution determines which edge location serves cached content
+
+**Example Scenario**: You have a global application deployed in multiple regions (US East, West Europe, Southeast Asia). You configure DNS so `www.yourcompany.com` points to Front Door. When a user in Tokyo queries the DNS, Front Door's DNS infrastructure resolves to the Southeast Asia backend (lowest latency). If that backend becomes unhealthy, DNS automatically resolves to the next closest healthy region. This provides seamless global distribution with automatic failover.
+
+**Important Considerations:**
+- **DNS TTL**: Front Door uses appropriate TTL values to balance responsiveness and DNS query load
+- **CNAME Flattening**: Front Door supports CNAME flattening for apex domains (root domains)
+- **SSL/TLS**: DNS validation is required for SSL certificates with custom domains
+
 **Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
 - **Directory**: `modules/front-door/` (structure exists)
 - **Implementation**: Would use `azurerm_frontdoor` resource
@@ -642,6 +781,34 @@ This section maps each Azure networking service to its exact code location and i
 - **Multi-region**: Distributes traffic across multiple Azure regions
 - **Health monitoring**: Monitors endpoint health and routes only to healthy endpoints
 - **Cost-effective**: Economical solution for global traffic distribution
+
+**DNS and Name Resolution:**
+
+Traffic Manager is fundamentally a DNS-based load balancing service. It doesn't proxy traffic; instead, it returns different DNS responses based on the configured routing method and endpoint health.
+
+**How DNS works with Traffic Manager:**
+- **DNS-Based Load Balancing**: Traffic Manager returns different IP addresses in DNS responses based on routing method
+- **Routing Methods**: DNS responses vary by method:
+  - **Priority**: Returns the IP of the highest priority healthy endpoint
+  - **Weighted**: Returns IPs based on configured weights (round-robin DNS)
+  - **Performance**: Returns the IP of the endpoint with lowest latency from the user's location
+  - **Geographic**: Returns IPs based on the user's geographic location
+  - **Subnet**: Returns IPs based on the user's source IP subnet
+- **Health Monitoring**: Traffic Manager monitors endpoint health and only returns healthy endpoints in DNS responses
+- **TTL Management**: Traffic Manager uses short TTLs (typically 60 seconds) to enable quick failover
+
+**Use Cases:**
+1. **Failover Scenarios**: Primary region fails → DNS automatically returns secondary region's IP
+2. **Geographic Distribution**: Users in different regions get DNS responses pointing to their nearest endpoint
+3. **A/B Testing**: Use weighted routing to gradually shift traffic from old to new infrastructure
+4. **Multi-Cloud**: Route traffic between Azure and other cloud providers using DNS
+
+**Example Scenario**: You have applications in US East (primary) and West Europe (secondary). You configure Traffic Manager with Priority routing. Under normal conditions, DNS queries return the US East IP. If US East becomes unhealthy, Traffic Manager's health probes detect this and DNS queries start returning the West Europe IP. The short TTL ensures clients quickly get the updated DNS response, enabling fast failover without manual intervention.
+
+**Important Considerations:**
+- **DNS Caching**: Client-side DNS caching may delay failover (mitigated by short TTLs)
+- **Not a Proxy**: Traffic Manager doesn't proxy traffic - it only returns DNS responses
+- **Health Probe Frequency**: More frequent health probes enable faster failover detection
 
 **Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
 - **Directory**: `modules/traffic-manager/` (structure exists)
@@ -682,6 +849,30 @@ This section maps each Azure networking service to its exact code location and i
 - **Secure**: Integrated DDoS protection
 - **Record management**: Manages DNS records (A, AAAA, CNAME, MX, NS, PTR, SOA, SRV, TXT)
 - **Delegation**: Delegates domains to Azure DNS
+
+**DNS and Name Resolution:**
+
+Azure DNS is the DNS service itself, providing DNS hosting and resolution capabilities for both public and private domains.
+
+**How Azure DNS works:**
+- **Public DNS Zones**: Host public DNS zones (e.g., `example.com`) with public DNS resolution
+- **Private DNS Zones**: Host private DNS zones (e.g., `internal.company.local`) for VNet resources
+- **DNS Resolver**: Azure DNS Private Resolver enables bidirectional DNS resolution between Azure and on-premises
+- **Automatic Record Management**: Azure services can automatically create DNS records (e.g., Private Link creates A records)
+
+**Use Cases:**
+1. **Public Domain Hosting**: Host your public domain's DNS records in Azure (A, AAAA, CNAME, MX, TXT, etc.)
+2. **Private Service Discovery**: Create private DNS zones for internal services (e.g., `database.internal` resolves to `10.0.3.10`)
+3. **Hybrid DNS**: Azure DNS Private Resolver enables on-premises resources to resolve Azure Private DNS zones and vice versa
+4. **Automated DNS Management**: Integrate with Azure services for automatic DNS record creation/updates
+
+**Example Scenario**: You have a multi-VNet architecture with services in different VNets. You create a Private DNS zone `services.internal` and link it to all VNets. Services register themselves (e.g., `api.services.internal`, `db.services.internal`). Resources in any VNet can resolve these names to private IPs, enabling service discovery without hardcoding IPs. When a service's IP changes, only the DNS record needs updating, not all client configurations.
+
+**Important Considerations:**
+- **Zone Linking**: Private DNS zones must be linked to VNets for resources in those VNets to resolve names
+- **Record Types**: Azure DNS supports all standard DNS record types
+- **Delegation**: Public DNS zones require domain delegation at your domain registrar
+- **Performance**: Azure DNS provides high-performance DNS resolution with global distribution
 
 **Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
 - **Directory**: `modules/dns/` (structure exists)
