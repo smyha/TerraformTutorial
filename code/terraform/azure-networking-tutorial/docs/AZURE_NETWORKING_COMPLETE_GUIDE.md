@@ -671,39 +671,336 @@ graph TB
 
 ### Azure VPN Gateway
 
-VPN Gateway connects your on-premises network to Azure via site-to-site or point-to-site VPN.
+Azure VPN Gateway is a specific type of virtual network gateway that enables secure, encrypted connections between your on-premises networks and Azure Virtual Networks over the public Internet, or between Azure Virtual Networks.
+
+#### What is a VPN Gateway?
+
+A VPN Gateway is a virtual network gateway that uses encrypted tunnels to send encrypted traffic between an Azure Virtual Network and an on-premises location over the public Internet. It can also be used to send encrypted traffic between Azure Virtual Networks.
 
 #### VPN Gateway Types
 
+Azure VPN Gateway supports three main connection types, each designed for different scenarios:
+
+##### 1. Site-to-Site (S2S) VPN
+
+**What it is:**
+
+Site-to-Site VPN creates a secure, encrypted connection between your on-premises network and an Azure Virtual Network. It uses IPsec/IKE (IKEv1 or IKEv2) VPN tunnels to establish the connection.
+
+**How it works:**
+
 ```mermaid
 graph TB
-    subgraph "Site-to-Site VPN"
-        OnPrem1[On-Premises<br/>Network 1] --> VPN1[VPN Gateway]
-        OnPrem2[On-Premises<br/>Network 2] --> VPN1
-        VPN1 --> VNet[Azure VNet]
+    subgraph "On-Premises Network"
+        OnPremRouter[On-Premises<br/>VPN Device]
+        OnPremNetwork[On-Premises<br/>Network<br/>192.168.1.0/24]
+        OnPremRouter --> OnPremNetwork
     end
     
-    subgraph "Point-to-Site VPN"
-        User[Remote User] --> P2S[Point-to-Site<br/>VPN]
-        P2S --> VNet
+    subgraph "Internet"
+        Internet[Public Internet]
     end
     
-    subgraph "VNet-to-VNet"
-        VNet1[VNet 1] --> VPN2[VPN Gateway]
-        VPN2 --> VNet2[VNet 2]
+    subgraph "Azure Virtual Network"
+        VPNGateway[VPN Gateway<br/>Public IP]
+        AzureVNet[Azure VNet<br/>10.0.0.0/16]
+        VPNGateway --> AzureVNet
     end
+    
+    OnPremRouter <-->|IPsec/IKE Tunnel<br/>Encrypted| Internet
+    Internet <-->|IPsec/IKE Tunnel<br/>Encrypted| VPNGateway
 ```
 
-#### VPN Gateway SKUs
+**Use Cases:**
 
-| SKU | Throughput | Tunnels | BGP |
-|-----|------------|---------|-----|
-| Basic | 100 Mbps | 10 | No |
-| VpnGw1 | 650 Mbps | 30 | Yes |
-| VpnGw2 | 1 Gbps | 30 | Yes |
-| VpnGw3 | 1.25 Gbps | 30 | Yes |
-| VpnGw4 | 5 Gbps | 100 | Yes |
-| VpnGw5 | 10 Gbps | 100 | Yes |
+1. **Branch Office Connectivity**: Connect branch offices to Azure resources
+   - Example: A retail company connects multiple store locations to Azure-hosted inventory systems
+   - Benefits: Centralized management, secure access to cloud resources
+
+2. **Hybrid Cloud Deployments**: Extend on-premises infrastructure to Azure
+   - Example: A company migrates applications to Azure but keeps databases on-premises
+   - Benefits: Gradual migration, maintain existing infrastructure
+
+3. **Disaster Recovery**: Replicate data and failover to Azure
+   - Example: Backup critical systems to Azure for disaster recovery
+   - Benefits: Cost-effective DR solution, automated failover
+
+4. **Development and Testing**: Connect development environments to Azure
+   - Example: Developers need secure access to Azure resources from corporate network
+   - Benefits: Secure access, no need for public endpoints
+
+5. **Multi-Site Connectivity**: Connect multiple on-premises locations
+   - Example: A company with offices in different cities connects all to Azure
+   - Benefits: Centralized connectivity, mesh networking capabilities
+
+**Key Characteristics:**
+
+- Requires a VPN device on-premises (physical or virtual)
+- Supports static routing or dynamic routing (BGP)
+- Can support multiple tunnels from different on-premises locations
+- Provides encrypted, authenticated connections
+
+##### 2. Point-to-Site (P2S) VPN
+
+**What it is:**
+
+Point-to-Site VPN creates a secure, encrypted connection from an individual client computer to an Azure Virtual Network. It's ideal for remote workers or users who need to connect to Azure resources from anywhere.
+
+**How it works:**
+
+```mermaid
+graph TB
+    subgraph "Remote Users"
+        User1[Remote User 1<br/>Windows/Mac/Linux]
+        User2[Remote User 2<br/>Mobile Device]
+        User3[Remote User 3<br/>Laptop]
+    end
+    
+    subgraph "Internet"
+        Internet2[Public Internet]
+    end
+    
+    subgraph "Azure Virtual Network"
+        VPNGateway2[VPN Gateway<br/>Public IP]
+        AzureVNet2[Azure VNet<br/>10.0.0.0/16]
+        VPNGateway2 --> AzureVNet2
+    end
+    
+    User1 -->|VPN Client<br/>Encrypted| Internet2
+    User2 -->|VPN Client<br/>Encrypted| Internet2
+    User3 -->|VPN Client<br/>Encrypted| Internet2
+    Internet2 -->|VPN Tunnel| VPNGateway2
+```
+
+**Use Cases:**
+
+1. **Remote Workforce**: Enable employees to work from home or remote locations
+   - Example: A company allows employees to securely access internal Azure resources from home
+   - Benefits: No need for VPN concentrators, easy to deploy
+
+2. **Contractors and Partners**: Provide temporary secure access
+   - Example: Grant contractors access to specific Azure resources for a project
+   - Benefits: Easy to provision and revoke access, certificate-based authentication
+
+3. **Mobile Workers**: Connect mobile devices to Azure resources
+   - Example: Field workers need to access Azure-hosted applications from tablets
+   - Benefits: Works on multiple platforms, no special hardware needed
+
+4. **Testing and Development**: Developers testing from home
+   - Example: Developers need to test applications in Azure from their home networks
+   - Benefits: Quick setup, no infrastructure changes needed
+
+5. **Small Office/Home Office (SOHO)**: Small businesses connecting to Azure
+   - Example: A small business connects their office network to Azure without dedicated VPN hardware
+   - Benefits: Cost-effective, no hardware investment
+
+**Key Characteristics:**
+
+- No VPN device required on-premises
+- Uses VPN client software (built into Windows, macOS, iOS, Android, Linux)
+- Supports certificate-based or Azure AD authentication
+- Each client gets its own IP address from the VNet address space
+- Ideal for small-scale deployments (typically < 100 concurrent connections)
+
+##### 3. VNet-to-VNet VPN
+
+**What it is:**
+
+VNet-to-VNet VPN creates a secure, encrypted connection between two Azure Virtual Networks. It allows you to connect VNets in the same region, different regions, or even different subscriptions.
+
+**How it works:**
+
+```mermaid
+graph TB
+    subgraph "Azure Region 1"
+        VNet1[VNet 1<br/>10.1.0.0/16]
+        VPNGateway1[VPN Gateway 1<br/>Public IP 1]
+        VNet1 --> VPNGateway1
+    end
+    
+    subgraph "Azure Region 2"
+        VNet2[VNet 2<br/>10.2.0.0/16]
+        VPNGateway2[VPN Gateway 2<br/>Public IP 2]
+        VNet2 --> VPNGateway2
+    end
+    
+    subgraph "Internet"
+        Internet3[Azure Backbone<br/>or Public Internet]
+    end
+    
+    VPNGateway1 <-->|IPsec/IKE Tunnel<br/>Encrypted| Internet3
+    Internet3 <-->|IPsec/IKE Tunnel<br/>Encrypted| VPNGateway2
+```
+
+**Use Cases:**
+
+1. **Multi-Region Deployments**: Connect VNets across different Azure regions
+   - Example: A company has VNets in East US and West Europe and needs them to communicate
+   - Benefits: Regional redundancy, disaster recovery, data replication
+
+2. **Cross-Subscription Connectivity**: Connect VNets in different subscriptions
+   - Example: Connect development and production VNets in separate subscriptions
+   - Benefits: Isolation with connectivity, cost allocation
+
+3. **Hub-Spoke Architecture**: Connect spoke VNets to a hub VNet
+   - Example: Central hub VNet with multiple spoke VNets for different workloads
+   - Benefits: Centralized services, reduced complexity
+
+4. **Geographic Redundancy**: Replicate data across regions
+   - Example: Database replication between regions for high availability
+   - Benefits: Automatic failover, data consistency
+
+5. **Isolated Environments**: Connect isolated environments securely
+   - Example: Connect production and disaster recovery VNets
+   - Benefits: Secure communication, network isolation
+
+**Key Characteristics:**
+
+- Both VNets require VPN Gateways
+- Traffic can traverse Azure backbone (faster) or public Internet
+- Supports BGP for dynamic routing
+- Can be used with ExpressRoute for hybrid scenarios
+- No additional charges for traffic within Azure backbone
+
+#### Understanding VPN Gateway SKUs
+
+**What are SKUs?**
+
+SKU stands for **Stock Keeping Unit**, but in Azure context, it refers to different **service tiers or performance levels** of a resource. Each SKU offers different capabilities, performance characteristics, and pricing. When you create a VPN Gateway, you must select a SKU that determines:
+
+- **Throughput**: Maximum bandwidth the gateway can handle
+- **Number of Tunnels**: How many simultaneous VPN connections it supports
+- **Features**: Whether it supports advanced features like BGP, Active-Active mode, etc.
+- **Pricing**: Higher SKUs cost more but offer better performance
+
+**VPN Gateway SKU Comparison:**
+
+| SKU | Throughput | Tunnels | BGP Support | Active-Active | Use Case |
+|-----|------------|---------|-------------|---------------|----------|
+| **Basic** | 100 Mbps | 10 | No | No | Development, testing, low-traffic scenarios |
+| **VpnGw1** | 650 Mbps | 30 | Yes | Yes | Small to medium production workloads |
+| **VpnGw2** | 1 Gbps | 30 | Yes | Yes | Medium production workloads |
+| **VpnGw3** | 1.25 Gbps | 30 | Yes | Yes | Large production workloads |
+| **VpnGw4** | 5 Gbps | 100 | Yes | Yes | Enterprise workloads, high availability |
+| **VpnGw5** | 10 Gbps | 100 | Yes | Yes | Mission-critical, high-throughput scenarios |
+
+**SKU Selection Guidelines:**
+
+1. **Basic SKU**: 
+   - Only for development and testing
+   - Does not support production workloads
+   - Limited to 10 tunnels, no BGP support
+
+2. **VpnGw1-3**: 
+   - Suitable for most production scenarios
+   - Good balance of performance and cost
+   - Supports all advanced features
+
+3. **VpnGw4-5**: 
+   - For high-throughput requirements
+   - Enterprise-scale deployments
+   - Multiple site connectivity
+
+#### Why Use BGP with VPN Gateway?
+
+**What is BGP?**
+
+BGP (Border Gateway Protocol) is a dynamic routing protocol that automatically learns and advertises routes between networks. In the context of Azure VPN Gateway, BGP enables dynamic routing between your on-premises network and Azure, eliminating the need to manually configure static routes.
+
+**Benefits of Using BGP:**
+
+1. **Automatic Route Propagation**: Routes are automatically learned and advertised
+2. **Failover Support**: Automatic failover if a connection fails
+3. **Multi-Path Support**: Use multiple paths for redundancy
+4. **Route Filtering**: Control which routes are advertised
+5. **Scalability**: Easier to manage in large networks
+
+**BGP Support by SKU:**
+
+| SKU | BGP Support | Why BGP is Recommended |
+|-----|-------------|------------------------|
+| **Basic** | ❌ No | Not available - use static routes or upgrade SKU |
+| **VpnGw1** | ✅ Yes | **Recommended for:**
+- Multi-site connectivity (connect multiple on-premises locations)
+- Active-Active gateway configurations for high availability
+- Dynamic route updates when network topology changes
+- Complex routing scenarios with multiple paths
+- Automatic failover between redundant connections |
+| **VpnGw2** | ✅ Yes | **Recommended for:**
+- All VpnGw1 scenarios with higher throughput requirements
+- Medium-scale enterprises with multiple branch offices
+- Scenarios requiring route filtering and policy-based routing
+- Integration with on-premises BGP-enabled routers |
+| **VpnGw3** | ✅ Yes | **Recommended for:**
+- All VpnGw2 scenarios with even higher throughput
+- Large-scale deployments with complex routing requirements
+- Scenarios with frequent network topology changes
+- Multi-homed networks (multiple ISPs) |
+| **VpnGw4** | ✅ Yes | **Recommended for:**
+- Enterprise-scale deployments with 100+ tunnels
+- High-availability scenarios requiring automatic failover
+- Complex routing policies and route filtering
+- Integration with large-scale BGP networks
+- Mission-critical applications requiring dynamic routing |
+| **VpnGw5** | ✅ Yes | **Recommended for:**
+- All VpnGw4 scenarios with maximum throughput (10 Gbps)
+- Mission-critical enterprise deployments
+- Maximum redundancy and failover capabilities
+- Large-scale BGP route propagation
+- High-performance scenarios with complex routing requirements |
+
+**When to Use BGP:**
+
+1. **Multiple On-Premises Locations**: When connecting multiple branch offices, BGP automatically learns routes from all locations
+2. **Active-Active Gateways**: BGP is required for Active-Active gateway configurations
+3. **Dynamic Network Changes**: When your on-premises network topology changes frequently
+4. **Route Filtering**: When you need to control which routes are advertised
+5. **Complex Routing**: When you have complex routing requirements that static routes can't handle
+
+**When Static Routing is Sufficient:**
+
+- Single on-premises location
+- Simple network topology
+- Routes don't change frequently
+- Cost optimization (Basic SKU)
+- Development and testing environments
+
+**BGP Configuration Example:**
+
+```mermaid
+graph TB
+    subgraph "On-Premises"
+        Router1[On-Premises Router<br/>BGP ASN: 65001]
+        Network1[Network 1<br/>192.168.1.0/24]
+        Network2[Network 2<br/>192.168.2.0/24]
+        Router1 --> Network1
+        Router1 --> Network2
+    end
+    
+    subgraph "Azure VPN Gateway"
+        VPNGW[VPN Gateway<br/>BGP ASN: 65515<br/>BGP Peer IP: 10.0.1.4]
+    end
+    
+    subgraph "Azure VNet"
+        VNet[VNet<br/>10.0.0.0/16]
+        Subnet1[Subnet 1<br/>10.0.1.0/24]
+        VPNGW --> VNet
+        VNet --> Subnet1
+    end
+    
+    Router1 <-->|BGP Session<br/>Exchange Routes| VPNGW
+    Router1 -.->|Advertises:<br/>192.168.1.0/24<br/>192.168.2.0/24| VPNGW
+    VPNGW -.->|Advertises:<br/>10.0.0.0/16| Router1
+```
+
+**BGP Flow:**
+
+1. On-premises router establishes BGP session with Azure VPN Gateway
+2. Router advertises on-premises routes (e.g., 192.168.1.0/24, 192.168.2.0/24)
+3. VPN Gateway advertises Azure VNet routes (e.g., 10.0.0.0/16)
+4. Both sides automatically learn routes and update routing tables
+5. If a route changes, BGP automatically updates both sides
+6. If a connection fails, BGP removes the route and uses backup paths if available
 
 ---
 
