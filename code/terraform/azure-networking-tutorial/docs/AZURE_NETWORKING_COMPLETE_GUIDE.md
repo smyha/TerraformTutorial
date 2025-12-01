@@ -617,21 +617,94 @@ sequenceDiagram
 
 ### Azure Private Link
 
-Private Link provides private connectivity to Azure services.
+Private Link provides private connectivity to Azure services and customer-owned services without exposing them to the Internet.
+
+#### What is Private Link?
+
+Private Link enables you to access Azure PaaS services and your own services over a private endpoint in your Virtual Network. Traffic stays on the Azure backbone network and never traverses the Internet.
 
 #### Private Link Architecture
 
 ```mermaid
 graph TB
-    VNet1[Virtual Network 1] --> PrivateEndpoint1[Private Endpoint]
-    VNet2[Virtual Network 2] --> PrivateEndpoint2[Private Endpoint]
-    PrivateEndpoint1 --> PrivateLinkService[Private Link Service]
-    PrivateEndpoint2 --> PrivateLinkService
-    PrivateLinkService --> Service[Azure Service<br/>Storage/SQL/etc.]
+    subgraph "Virtual Network 1"
+        VNet1[VNet 1<br/>10.1.0.0/16]
+        PrivateEndpoint1[Private Endpoint<br/>10.1.5.10]
+        VNet1 --> PrivateEndpoint1
+    end
     
-    Internet -.->|Blocked| Service
-    VNet1 -.->|Private| Service
-    VNet2 -.->|Private| Service
+    subgraph "Virtual Network 2"
+        VNet2[VNet 2<br/>10.2.0.0/16]
+        PrivateEndpoint2[Private Endpoint<br/>10.2.5.10]
+        VNet2 --> PrivateEndpoint2
+    end
+    
+    subgraph "Azure Service"
+        StorageAccount[Storage Account<br/>Private Endpoint Enabled]
+        SQLDatabase[SQL Database<br/>Private Endpoint Enabled]
+        KeyVault[Key Vault<br/>Private Endpoint Enabled]
+    end
+    
+    subgraph "Private DNS Zone"
+        PrivateDNS[privatelink.blob.core.windows.net]
+        PrivateDNS -->|Resolves| PrivateEndpoint1
+        PrivateDNS -->|Resolves| PrivateEndpoint2
+    end
+    
+    PrivateEndpoint1 -->|Private Connection| StorageAccount
+    PrivateEndpoint2 -->|Private Connection| SQLDatabase
+    PrivateEndpoint1 -->|Private Connection| KeyVault
+    
+    Internet -.->|Blocked| StorageAccount
+    Internet -.->|Blocked| SQLDatabase
+    Internet -.->|Blocked| KeyVault
+    
+    style PrivateEndpoint1 fill:#51cf66,color:#fff
+    style PrivateEndpoint2 fill:#51cf66,color:#fff
+    style PrivateDNS fill:#339af0,color:#fff
+```
+
+#### Private Link Components
+
+**1. Private Endpoints:**
+- Provide private IP addresses for Azure services
+- Created in your Virtual Network
+- Automatically integrates with Private DNS zones
+- Traffic stays on Azure backbone
+
+**2. Private Link Services:**
+- Expose your own services via Private Link
+- Works with Load Balancer (Standard SKU)
+- Control who can connect (approval required)
+- Private connectivity for consumers
+
+#### Terraform Example
+
+```hcl
+module "private_link" {
+  source = "./modules/private-link"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  # Private Endpoint for Storage Account
+  private_endpoints = {
+    "storage-endpoint" = {
+      name      = "pe-storage"
+      subnet_id = azurerm_subnet.private_endpoints.id
+      private_service_connection = {
+        name                           = "storage-connection"
+        private_connection_resource_id = azurerm_storage_account.main.id
+        subresource_names              = ["blob"]
+        is_manual_connection           = false
+      }
+      private_dns_zone_group = {
+        name                 = "storage-dns-zone-group"
+        private_dns_zone_ids = [azurerm_private_dns_zone.storage.id]
+      }
+    }
+  }
+}
 ```
 
 #### Private Link Benefits
@@ -640,30 +713,74 @@ graph TB
 - **No Public Exposure**: Services not exposed to internet
 - **Simplified Networking**: No NSG rules for service IPs
 - **Global Reach**: Connect across regions
+- **Automatic DNS**: Automatic DNS integration with Private DNS zones
+- **Compliance**: Meets compliance requirements for private connectivity
 
 ---
 
 ### Azure DDoS Protection
 
-DDoS Protection protects against distributed denial-of-service attacks.
+DDoS Protection protects Azure resources from distributed denial-of-service attacks.
+
+#### What is DDoS Protection?
+
+DDoS Protection provides protection against DDoS attacks by automatically detecting and mitigating attacks. It has two tiers: Basic (free, always-on) and Standard (paid, advanced features).
 
 #### DDoS Protection Tiers
 
 ```mermaid
 graph TB
-    Attack[DDoS Attack] --> Basic[Basic Protection<br/>Always On]
-    Attack --> Standard[Standard Protection<br/>Adaptive Tuning]
+    Attack[DDoS Attack] --> Basic[Basic Protection<br/>Always On<br/>Free]
+    Attack --> Standard[Standard Protection<br/>Adaptive Tuning<br/>Paid]
     
     Basic --> Mitigation1[Automatic Mitigation]
     Standard --> Mitigation2[Advanced Mitigation]
     Standard --> Alerting[Attack Analytics]
     Standard --> CostProtection[Cost Protection]
+    Standard --> DDoSRR[DDoS Rapid Response]
+    
+    style Basic fill:#51cf66,color:#fff
+    style Standard fill:#339af0,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "ddos_protection" {
+  source = "./modules/ddos-protection"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  ddos_protection_plan_name = "ddos-plan-prod"
+  sku                      = "Standard"  # or "Basic" for free tier
+}
 ```
 
 #### Protection Tiers
 
-1. **Basic**: Always-on, automatic mitigation (free)
-2. **Standard**: Advanced features, attack analytics, cost protection (paid)
+**Basic (Free):**
+- Always-on protection
+- Automatic mitigation
+- No additional cost
+- Included with all Azure subscriptions
+
+**Standard (Paid):**
+- All Basic features
+- Attack analytics and reporting
+- Cost protection (waiver for resources scaled due to attack)
+- DDoS rapid response support
+- Adaptive tuning
+- Telemetry and monitoring
+- Custom alert thresholds
+
+#### DDoS Protection Features
+
+1. **Automatic Mitigation**: Automatically detects and mitigates attacks
+2. **Attack Analytics**: Detailed reports on attacks
+3. **Cost Protection**: Waiver for resources scaled during attacks
+4. **Rapid Response**: Direct access to DDoS experts during active attacks
+5. **Adaptive Tuning**: Automatically adjusts to your traffic patterns
 
 ---
 
@@ -1039,32 +1156,114 @@ graph TB
 
 ### Azure Virtual WAN
 
-Virtual WAN is a networking service that brings many networking, security, and routing functionalities together.
+Virtual WAN is a networking service that brings many networking, security, and routing functionalities together into a single operational interface.
+
+#### What is Virtual WAN?
+
+Virtual WAN simplifies global branch-to-branch connectivity by providing a unified platform for:
+- Branch connectivity (VPN, ExpressRoute)
+- Site-to-site connectivity
+- Remote user connectivity (point-to-site VPN)
+- VNet connectivity
+- Centralized security (Azure Firewall)
+- SD-WAN integration
 
 #### Virtual WAN Architecture
 
 ```mermaid
 graph TB
-    Branch1[Branch Office 1] --> Hub1[Virtual Hub 1]
-    Branch2[Branch Office 2] --> Hub1
-    VNet1[VNet 1] --> Hub1
-    VNet2[VNet 2] --> Hub1
+    subgraph "Branch Offices"
+        Branch1[Branch Office 1<br/>VPN]
+        Branch2[Branch Office 2<br/>ExpressRoute]
+        Branch3[Branch Office 3<br/>SD-WAN]
+    end
     
-    Hub1 --> Hub2[Virtual Hub 2<br/>Different Region]
-    Hub2 --> Branch3[Branch Office 3]
-    Hub2 --> VNet3[VNet 3]
+    subgraph "Virtual WAN"
+        VWAN[Virtual WAN<br/>Centralized Management]
+    end
     
-    Hub1 --> Firewall3[Azure Firewall]
-    Hub2 --> Firewall4[Azure Firewall]
+    subgraph "Virtual Hub 1 (East US)"
+        Hub1[Virtual Hub 1]
+        VPNGW1[VPN Gateway]
+        ERGW1[ExpressRoute Gateway]
+        Firewall1[Azure Firewall]
+        Hub1 --> VPNGW1
+        Hub1 --> ERGW1
+        Hub1 --> Firewall1
+    end
+    
+    subgraph "Virtual Hub 2 (West Europe)"
+        Hub2[Virtual Hub 2]
+        VPNGW2[VPN Gateway]
+        Firewall2[Azure Firewall]
+        Hub2 --> VPNGW2
+        Hub2 --> Firewall2
+    end
+    
+    subgraph "Azure Virtual Networks"
+        VNet1[VNet 1<br/>Spoke]
+        VNet2[VNet 2<br/>Spoke]
+        VNet3[VNet 3<br/>Spoke]
+    end
+    
+    VWAN --> Hub1
+    VWAN --> Hub2
+    
+    Branch1 --> VPNGW1
+    Branch2 --> ERGW1
+    Branch3 --> VPNGW1
+    
+    Hub1 -->|VNet Connection| VNet1
+    Hub1 -->|VNet Connection| VNet2
+    Hub2 -->|VNet Connection| VNet3
+    
+    Hub1 <-->|Hub-to-Hub| Hub2
+    
+    style VWAN fill:#339af0,color:#fff
+    style Hub1 fill:#51cf66,color:#fff
+    style Hub2 fill:#51cf66,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "virtual_wan" {
+  source = "./modules/virtual-wan"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  virtual_wan_name = "vwan-main"
+  type             = "Standard"
+  
+  allow_branch_to_branch_traffic = true
+  
+  virtual_hubs = {
+    "hub-eastus" = {
+      name                = "vhub-eastus"
+      address_prefix      = "10.1.0.0/24"
+      sku                 = "Standard"
+      hub_routing_preference = "ExpressRoute"
+    }
+    "hub-westeurope" = {
+      name                = "vhub-westeurope"
+      address_prefix      = "10.2.0.0/24"
+      sku                 = "Standard"
+      hub_routing_preference = "VPN"
+    }
+  }
+}
 ```
 
 #### Virtual WAN Features
 
-- **Hub and Spoke**: Centralized connectivity
-- **Branch Connectivity**: VPN, ExpressRoute
+- **Hub and Spoke**: Centralized connectivity in virtual hubs
+- **Branch Connectivity**: VPN, ExpressRoute, SD-WAN
 - **VNet Connectivity**: Connect VNets to hubs
-- **Firewall Integration**: Centralized security
+- **Firewall Integration**: Centralized security with Azure Firewall
 - **SD-WAN Integration**: Third-party SD-WAN devices
+- **Global Reach**: Connect hubs across regions
+- **Automated Management**: Simplified operations
 
 ---
 
@@ -1135,30 +1334,101 @@ graph TB
 
 ### Azure Network Watcher
 
-Network Watcher provides tools to monitor, diagnose, and view metrics for your network.
+Network Watcher provides tools to monitor, diagnose, and view metrics for your Azure network infrastructure.
+
+#### What is Network Watcher?
+
+Network Watcher is a regional service that provides network monitoring and diagnostic capabilities. It helps you monitor, diagnose, view metrics, and enable or disable logs for resources in an Azure Virtual Network.
 
 #### Network Watcher Tools
 
 ```mermaid
 graph TB
-    NW[Network Watcher] --> Topology[Topology View]
-    NW --> ConnectionMonitor[Connection Monitor]
-    NW --> PacketCapture[Packet Capture]
-    NW --> IPFlow[IP Flow Verify]
-    NW --> NextHop[Next Hop]
-    NW --> VPNTroubleshoot[VPN Troubleshoot]
-    NW --> NSGFlow[NSG Flow Logs]
+    NW[Network Watcher] --> Topology[Topology View<br/>Visualize Network Resources]
+    NW --> ConnectionMonitor[Connection Monitor<br/>Monitor Connectivity]
+    NW --> PacketCapture[Packet Capture<br/>Capture Network Packets]
+    NW --> IPFlow[IP Flow Verify<br/>Test NSG Rules]
+    NW --> NextHop[Next Hop<br/>Determine Routing Path]
+    NW --> VPNTroubleshoot[VPN Troubleshoot<br/>Diagnose VPN Issues]
+    NW --> NSGFlow[NSG Flow Logs<br/>Log All Traffic]
+    NW --> TrafficAnalytics[Traffic Analytics<br/>Analyze Flow Logs]
+    
+    style NW fill:#339af0,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "network_watcher" {
+  source = "./modules/network-watcher"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  network_watcher_name = "NetworkWatcher_eastus"
+  enable_flow_logs     = true
+  
+  flow_logs = {
+    "nsg-web-flow-log" = {
+      network_security_group_id = azurerm_network_security_group.web.id
+      storage_account_id        = azurerm_storage_account.logs.id
+      enabled                   = true
+      retention_days            = 30
+      version                   = 2
+      traffic_analytics = {
+        enabled               = true
+        workspace_id          = azurerm_log_analytics_workspace.main.workspace_id
+        workspace_region      = "eastus"
+        workspace_resource_id = azurerm_log_analytics_workspace.main.id
+        interval_in_minutes   = 60
+      }
+    }
+  }
+}
 ```
 
 #### Network Watcher Features
 
-1. **Topology**: Visualize network resources
-2. **Connection Monitor**: Monitor connectivity
-3. **Packet Capture**: Capture network packets
-4. **IP Flow Verify**: Test if traffic is allowed
+1. **Topology**: Visualize network resources and their relationships
+   - See all resources in a VNet
+   - Understand connectivity
+   - Identify misconfigurations
+
+2. **Connection Monitor**: Monitor connectivity between endpoints
+   - Test connectivity between VMs
+   - Measure latency
+   - Detect connectivity issues
+
+3. **Packet Capture**: Capture network packets for analysis
+   - Capture packets from VMs
+   - Analyze network traffic
+   - Troubleshoot network issues
+
+4. **IP Flow Verify**: Test if traffic is allowed by NSG rules
+   - Verify if traffic is allowed/denied
+   - Identify blocking NSG rules
+   - Troubleshoot connectivity issues
+
 5. **Next Hop Analysis**: Determine routing path
+   - See where traffic is routed
+   - Identify routing issues
+   - Understand network topology
+
 6. **VPN Troubleshoot**: Diagnose VPN issues
+   - Troubleshoot VPN Gateway connections
+   - Identify VPN configuration issues
+   - Get diagnostic information
+
 7. **NSG Flow Logs**: Log network traffic
+   - Log all network traffic
+   - Analyze traffic patterns
+   - Security analysis
+   - Compliance reporting
+
+8. **Traffic Analytics**: Analyze flow logs
+   - Visualize network traffic
+   - Identify security threats
+   - Optimize network performance
 
 ---
 
@@ -1218,6 +1488,480 @@ graph TB
     AppTier --> NSG5[NSG: App]
     DBTier --> NSG6[NSG: DB]
 ```
+
+---
+
+### Azure DNS
+
+Azure DNS provides DNS hosting for your domains with high availability and global distribution.
+
+#### What is Azure DNS?
+
+Azure DNS is a hosting service for DNS domains that provides name resolution using Microsoft's Azure infrastructure. It supports both public and private DNS zones.
+
+#### DNS Zone Types
+
+**Public DNS Zones:**
+- Resolve DNS queries from anywhere on the Internet
+- Used for internet-facing domains
+- High availability (99.99% SLA)
+- Fast DNS resolution globally
+
+**Private DNS Zones:**
+- Resolve DNS queries within Azure Virtual Networks
+- Not accessible from the Internet
+- Automatic VM registration (optional)
+- Custom domain names for internal services
+
+#### DNS Architecture
+
+```mermaid
+graph TB
+    subgraph "Public DNS Zone"
+        PublicZone[example.com<br/>Public Zone]
+        PublicZone --> ARecord[A Record<br/>www → 1.2.3.4]
+        PublicZone --> CNAME[CNAME<br/>api → www.example.com]
+        PublicZone --> MX[MX Record<br/>mail → mail.example.com]
+    end
+    
+    subgraph "Private DNS Zone"
+        PrivateZone[internal.company<br/>Private Zone]
+        PrivateZone --> PrivateA[A Record<br/>db → 10.0.3.10]
+        PrivateZone --> PrivateCNAME[CNAME<br/>app → app-vm.internal.company]
+    end
+    
+    subgraph "Virtual Network"
+        VNet[VNet<br/>10.0.0.0/16]
+        VM1[VM 1<br/>Auto-registered]
+        VM2[VM 2<br/>Auto-registered]
+    end
+    
+    Internet[Internet Users] -->|DNS Query| PublicZone
+    VNet -->|DNS Query| PrivateZone
+    PrivateZone -->|Auto-register| VM1
+    PrivateZone -->|Auto-register| VM2
+    
+    style PublicZone fill:#339af0,color:#fff
+    style PrivateZone fill:#51cf66,color:#fff
+```
+
+#### DNS Record Types
+
+| Record Type | Purpose | Example |
+|-------------|---------|---------|
+| **A** | IPv4 address | `www.example.com → 1.2.3.4` |
+| **AAAA** | IPv6 address | `www.example.com → 2001:db8::1` |
+| **CNAME** | Canonical name (alias) | `api.example.com → www.example.com` |
+| **MX** | Mail exchange | `example.com → mail.example.com (priority 10)` |
+| **NS** | Name server | Delegation records |
+| **PTR** | Pointer (reverse DNS) | `4.3.2.1.in-addr.arpa → www.example.com` |
+| **SRV** | Service record | `_http._tcp.example.com → server:8080` |
+| **TXT** | Text record | `example.com → "v=spf1 include:spf.example.com"` |
+| **SOA** | Start of authority | Zone metadata |
+
+#### Terraform Example
+
+```hcl
+module "dns" {
+  source = "./modules/dns"
+  
+  resource_group_name = "rg-example"
+  location           = "global"
+  
+  # Public DNS Zone
+  dns_zones = {
+    "example.com" = {
+      zone_type = "Public"
+    }
+  }
+  
+  # DNS Records
+  dns_records = {
+    "example.com/www" = {
+      zone_name = "example.com"
+      name      = "www"
+      type      = "A"
+      ttl       = 300
+      records   = ["1.2.3.4"]
+    }
+    "example.com/api" = {
+      zone_name = "example.com"
+      name      = "api"
+      type      = "CNAME"
+      ttl       = 300
+      records   = ["www.example.com"]
+    }
+  }
+  
+  # Private DNS Zone
+  dns_zones = {
+    "internal.company" = {
+      zone_type = "Private"
+    }
+  }
+  
+  # Private DNS Zone VNet Link
+  private_dns_zone_virtual_network_links = {
+    "internal.company/vnet-link" = {
+      zone_name           = "internal.company"
+      virtual_network_id  = azurerm_virtual_network.main.id
+      registration_enabled = true  # Auto-register VMs
+    }
+  }
+}
+```
+
+#### DNS Use Cases
+
+1. **Public Domain Hosting**: Host DNS for your public domains
+2. **Internal Name Resolution**: Use private DNS zones for internal services
+3. **Service Discovery**: Automatic VM registration in private zones
+4. **Custom Domains**: Create custom domain names for applications
+5. **Hybrid DNS**: Integrate with on-premises DNS
+
+---
+
+### Azure Private Link
+
+Private Link provides private connectivity to Azure services and customer-owned services without exposing them to the Internet.
+
+#### Private Link Architecture
+
+```mermaid
+graph TB
+    subgraph "Virtual Network"
+        VNet[VNet<br/>10.0.0.0/16]
+        PrivateEndpoint[Private Endpoint<br/>10.0.5.10]
+        VNet --> PrivateEndpoint
+    end
+    
+    subgraph "Azure Service"
+        StorageAccount[Storage Account<br/>Private Endpoint]
+        SQLDatabase[SQL Database<br/>Private Endpoint]
+        KeyVault[Key Vault<br/>Private Endpoint]
+    end
+    
+    subgraph "Private DNS Zone"
+        PrivateDNS[privatelink.blob.core.windows.net]
+        PrivateDNS -->|Resolves| PrivateEndpoint
+    end
+    
+    PrivateEndpoint -->|Private Connection| StorageAccount
+    PrivateEndpoint -->|Private Connection| SQLDatabase
+    PrivateEndpoint -->|Private Connection| KeyVault
+    
+    Internet -.->|Blocked| StorageAccount
+    Internet -.->|Blocked| SQLDatabase
+    Internet -.->|Blocked| KeyVault
+    
+    style PrivateEndpoint fill:#51cf66,color:#fff
+    style PrivateDNS fill:#339af0,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "private_link" {
+  source = "./modules/private-link"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  # Private Endpoint for Storage Account
+  private_endpoints = {
+    "storage-endpoint" = {
+      name      = "pe-storage"
+      subnet_id = azurerm_subnet.private_endpoints.id
+      private_service_connection = {
+        name                           = "storage-connection"
+        private_connection_resource_id = azurerm_storage_account.main.id
+        subresource_names              = ["blob"]
+        is_manual_connection           = false
+      }
+      private_dns_zone_group = {
+        name                 = "storage-dns-zone-group"
+        private_dns_zone_ids = [azurerm_private_dns_zone.storage.id]
+      }
+    }
+  }
+}
+```
+
+#### Private Link Benefits
+
+1. **No Public Exposure**: Services not accessible from Internet
+2. **Private IP Addresses**: Services get private IPs in your VNet
+3. **Automatic DNS Integration**: Automatic DNS resolution
+4. **Global Reach**: Connect across regions
+5. **Simplified Networking**: No need to manage service IP ranges
+
+---
+
+### Azure DDoS Protection
+
+DDoS Protection protects Azure resources from distributed denial-of-service attacks.
+
+#### DDoS Protection Tiers
+
+```mermaid
+graph TB
+    Attack[DDoS Attack] --> Basic[Basic Protection<br/>Always On<br/>Free]
+    Attack --> Standard[Standard Protection<br/>Adaptive Tuning<br/>Paid]
+    
+    Basic --> Mitigation1[Automatic Mitigation]
+    Standard --> Mitigation2[Advanced Mitigation]
+    Standard --> Alerting[Attack Analytics]
+    Standard --> CostProtection[Cost Protection]
+    Standard --> DDoSRR[DDoS Rapid Response]
+```
+
+#### Terraform Example
+
+```hcl
+module "ddos_protection" {
+  source = "./modules/ddos-protection"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  ddos_protection_plan_name = "ddos-plan-prod"
+  sku                      = "Standard"  # or "Basic" for free tier
+}
+```
+
+#### DDoS Protection Features
+
+**Basic (Free):**
+- Always-on protection
+- Automatic mitigation
+- No additional cost
+
+**Standard (Paid):**
+- All Basic features
+- Attack analytics and reporting
+- Cost protection (waiver for scaled resources)
+- DDoS rapid response support
+- Adaptive tuning
+- Telemetry and monitoring
+
+---
+
+### Azure Firewall Manager
+
+Firewall Manager provides centralized security policy management for Azure Firewall across multiple Virtual Networks and Virtual WAN hubs.
+
+#### Firewall Manager Architecture
+
+```mermaid
+graph TB
+    subgraph "Firewall Manager"
+        FirewallPolicy[Firewall Policy<br/>Centralized Rules]
+        RuleCollectionGroups[Rule Collection Groups]
+        FirewallPolicy --> RuleCollectionGroups
+    end
+    
+    subgraph "Virtual Network 1"
+        VNet1[VNet 1]
+        Firewall1[Azure Firewall<br/>Policy: FirewallPolicy]
+        VNet1 --> Firewall1
+    end
+    
+    subgraph "Virtual Network 2"
+        VNet2[VNet 2]
+        Firewall2[Azure Firewall<br/>Policy: FirewallPolicy]
+        VNet2 --> Firewall2
+    end
+    
+    subgraph "Virtual WAN Hub"
+        VWANHub[Virtual WAN Hub]
+        HubFirewall[Azure Firewall<br/>Policy: FirewallPolicy]
+        VWANHub --> HubFirewall
+    end
+    
+    FirewallPolicy --> Firewall1
+    FirewallPolicy --> Firewall2
+    FirewallPolicy --> HubFirewall
+    
+    style FirewallPolicy fill:#51cf66,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "firewall_manager" {
+  source = "./modules/firewall-manager"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  firewall_policy_name = "fw-policy-central"
+  sku                 = "Premium"
+  
+  threat_intelligence_mode = "Deny"
+  
+  rule_collection_groups = {
+    "network-rules" = {
+      priority = 100
+      network_rule_collections = [
+        {
+          name     = "AllowHTTPS"
+          priority = 100
+          action   = "Allow"
+          rules = [
+            {
+              name                  = "AllowHTTPS"
+              protocols             = ["TCP"]
+              source_addresses      = ["*"]
+              destination_addresses = ["*"]
+              destination_ports     = ["443"]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Firewall Manager Benefits
+
+1. **Centralized Management**: Manage all firewalls from one place
+2. **Consistent Policies**: Apply same policies across all firewalls
+3. **Rule Collection Groups**: Organize rules for easier management
+4. **Threat Intelligence**: Centralized threat intelligence configuration
+5. **TLS Inspection**: Premium SKU supports TLS inspection
+
+---
+
+### Azure CDN
+
+Azure CDN delivers content to users with high bandwidth by caching content at edge locations close to users.
+
+#### CDN Architecture
+
+```mermaid
+graph TB
+    Origin[Origin Server<br/>Web App/Storage] --> CDN[Azure CDN Profile]
+    CDN --> Edge1[Edge Server 1<br/>US East]
+    CDN --> Edge2[Edge Server 2<br/>Europe]
+    CDN --> Edge3[Edge Server 3<br/>Asia]
+    
+    User1[User 1<br/>US] -->|Fast Delivery| Edge1
+    User2[User 2<br/>Europe] -->|Fast Delivery| Edge2
+    User3[User 3<br/>Asia] -->|Fast Delivery| Edge3
+    
+    Edge1 -.->|Cache Miss| Origin
+    Edge2 -.->|Cache Miss| Origin
+    Edge3 -.->|Cache Miss| Origin
+    
+    style CDN fill:#339af0,color:#fff
+    style Origin fill:#51cf66,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "cdn" {
+  source = "./modules/cdn"
+  
+  resource_group_name = "rg-example"
+  location           = "global"
+  
+  cdn_profile_name = "cdn-profile-main"
+  sku              = "Standard_Microsoft"
+  
+  cdn_endpoints = {
+    "web-endpoint" = {
+      name                = "cdn-web"
+      origin_host_header  = "www.example.com"
+      origins = [
+        {
+          name       = "web-origin"
+          host_name  = "www.example.com"
+          http_port  = 80
+          https_port = 443
+        }
+      ]
+      is_http_allowed               = true
+      is_https_allowed              = true
+      querystring_caching_behaviour = "IgnoreQueryString"
+      is_compression_enabled        = true
+      content_types_to_compress     = ["text/html", "text/css", "application/javascript"]
+    }
+  }
+}
+```
+
+#### CDN Features
+
+- **Global Distribution**: Content cached at edge locations worldwide
+- **Dynamic Acceleration**: Route optimization for dynamic content
+- **Compression**: Automatic compression of content
+- **HTTPS Support**: SSL/TLS encryption
+- **Custom Domains**: Use your own domain names
+- **Geo-filtering**: Block or allow content by geographic location
+
+---
+
+### Azure Network Watcher
+
+Network Watcher provides tools to monitor, diagnose, and view metrics for your Azure network infrastructure.
+
+#### Network Watcher Tools
+
+```mermaid
+graph TB
+    NW[Network Watcher] --> Topology[Topology View<br/>Visualize Network]
+    NW --> ConnectionMonitor[Connection Monitor<br/>Monitor Connectivity]
+    NW --> PacketCapture[Packet Capture<br/>Capture Packets]
+    NW --> IPFlow[IP Flow Verify<br/>Test Traffic Rules]
+    NW --> NextHop[Next Hop<br/>Determine Routing]
+    NW --> VPNTroubleshoot[VPN Troubleshoot<br/>Diagnose VPN]
+    NW --> NSGFlow[NSG Flow Logs<br/>Log Traffic]
+    
+    style NW fill:#339af0,color:#fff
+```
+
+#### Terraform Example
+
+```hcl
+module "network_watcher" {
+  source = "./modules/network-watcher"
+  
+  resource_group_name = "rg-example"
+  location           = "eastus"
+  
+  network_watcher_name = "NetworkWatcher_eastus"
+  enable_flow_logs     = true
+  
+  flow_logs = {
+    "nsg-web-flow-log" = {
+      network_security_group_id = azurerm_network_security_group.web.id
+      storage_account_id        = azurerm_storage_account.logs.id
+      enabled                   = true
+      retention_days            = 30
+      version                   = 2
+      traffic_analytics = {
+        enabled               = true
+        workspace_id          = azurerm_log_analytics_workspace.main.workspace_id
+        workspace_region      = "eastus"
+        workspace_resource_id = azurerm_log_analytics_workspace.main.id
+        interval_in_minutes   = 60
+      }
+    }
+  }
+}
+```
+
+#### Network Watcher Features
+
+1. **Topology**: Visualize network resources and their relationships
+2. **Connection Monitor**: Monitor connectivity between endpoints
+3. **Packet Capture**: Capture network packets for analysis
+4. **IP Flow Verify**: Test if traffic is allowed by NSG rules
+5. **Next Hop**: Determine the routing path for traffic
+6. **VPN Troubleshoot**: Diagnose VPN connectivity issues
+7. **NSG Flow Logs**: Log all network traffic for analysis
 
 ---
 
