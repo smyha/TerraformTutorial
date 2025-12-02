@@ -33,15 +33,17 @@ inputs = {
   sku_name = "Standard"
 
   # Public IP configuration
-  # NAT Gateway requires at least one public IP
-  public_ip_address_ids = [] # Will be created separately or passed as dependency
-
-  # Subnet associations
-  # NAT Gateway can be associated with multiple subnets
-  subnet_ids = [
-    dependency.vnet.outputs.subnet_ids["app-subnet"],
-    # Add more subnets as needed
-  ]
+  # NAT Gateway requires at least one public IP (Standard SKU)
+  # NOTE: Public IPs must be created separately and their IDs passed here
+  # Example: public_ip_address_ids = [azurerm_public_ip.nat.id]
+  public_ip_address_ids = [] # TODO: Add public IP IDs here
+  
+  # NOTE: Subnet associations are done separately using azurerm_subnet_nat_gateway_association
+  # This is not handled by the module. Example:
+  # resource "azurerm_subnet_nat_gateway_association" "app" {
+  #   subnet_id      = dependency.vnet.outputs.subnet_ids["app-subnet"]
+  #   nat_gateway_id = module.nat_gateway.nat_gateway_id
+  # }
 
   # Idle timeout in minutes (4-120, default 4)
   idle_timeout_in_minutes = 4

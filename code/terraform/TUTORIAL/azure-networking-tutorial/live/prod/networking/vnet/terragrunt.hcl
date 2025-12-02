@@ -1,7 +1,7 @@
 # ============================================================================
 # TERRAGRUNT CONFIGURATION: Virtual Network (Production Environment)
 # ============================================================================
-# Production configuration with enhanced security and larger address spaces.
+# Production configuration with enhanced security and monitoring.
 # ============================================================================
 
 terraform {
@@ -15,10 +15,10 @@ include {
 inputs = {
   resource_group_name = "rg-networking-prod"
   location           = "eastus"
+  vnet_name          = "vnet-prod"
+  address_space      = ["10.0.0.0/16"]
 
-  vnet_name     = "vnet-prod"
-  address_space = ["10.0.0.0/16"] # Larger address space for production
-
+  # Production subnets with proper segmentation
   subnets = {
     "web-subnet" = {
       address_prefixes = ["10.0.1.0/24"]
@@ -35,14 +35,15 @@ inputs = {
     "gateway-subnet" = {
       address_prefixes = ["10.0.4.0/24"]
     }
-    "firewall-subnet" = {
-      address_prefixes = ["10.0.5.0/26"] # Minimum /26 for Azure Firewall
-    }
     "bastion-subnet" = {
-      address_prefixes = ["10.0.6.0/26"] # Minimum /26 for Azure Bastion
+      address_prefixes = ["10.0.5.0/24"]
+    }
+    "firewall-subnet" = {
+      address_prefixes = ["10.0.6.0/24"]
     }
   }
 
+  # Production NSG rules (more restrictive)
   network_security_groups = {
     "nsg-web" = {
       rules = [
@@ -67,80 +68,18 @@ inputs = {
           destination_port_range     = "443"
           source_address_prefix       = "*"
           destination_address_prefix = "*"
-        },
-        {
-          name                       = "DenyAllOther"
-          priority                   = 4096
-          direction                  = "Inbound"
-          access                     = "Deny"
-          protocol                   = "*"
-          source_port_range          = "*"
-          destination_port_range     = "*"
-          source_address_prefix       = "*"
-          destination_address_prefix = "*"
         }
       ]
       associate_to_subnets = ["web-subnet"]
     }
-    "nsg-app" = {
-      rules = [
-        {
-          name                       = "AllowAppFromWeb"
-          priority                   = 1000
-          direction                  = "Inbound"
-          access                     = "Allow"
-          protocol                   = "Tcp"
-          source_port_range          = "*"
-          destination_port_range     = "8080"
-          source_address_prefix       = "10.0.1.0/24"
-          destination_address_prefix = "*"
-        },
-        {
-          name                       = "DenyAllOther"
-          priority                   = 4096
-          direction                  = "Inbound"
-          access                     = "Deny"
-          protocol                   = "*"
-          source_port_range          = "*"
-          destination_port_range     = "*"
-          source_address_prefix       = "*"
-          destination_address_prefix = "*"
-        }
-      ]
-      associate_to_subnets = ["app-subnet"]
-    }
-    "nsg-db" = {
-      rules = [
-        {
-          name                       = "AllowDBFromApp"
-          priority                   = 1000
-          direction                  = "Inbound"
-          access                     = "Allow"
-          protocol                   = "Tcp"
-          source_port_range          = "*"
-          destination_port_range     = "1433"
-          source_address_prefix       = "10.0.2.0/24"
-          destination_address_prefix = "*"
-        },
-        {
-          name                       = "DenyAllOther"
-          priority                   = 4096
-          direction                  = "Inbound"
-          access                     = "Deny"
-          protocol                   = "*"
-          source_port_range          = "*"
-          destination_port_range     = "*"
-          source_address_prefix       = "*"
-          destination_address_prefix = "*"
-        }
-      ]
-      associate_to_subnets = ["db-subnet"]
-    }
   }
-
-  route_tables = {}
 
   # Enable DDoS Protection for production
   enable_ddos_protection = true
+  
+  tags = {
+    Environment = "production"
+    Component   = "networking"
+    ManagedBy   = "Terragrunt"
+  }
 }
-

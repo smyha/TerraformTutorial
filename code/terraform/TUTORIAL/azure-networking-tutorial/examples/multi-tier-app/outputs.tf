@@ -29,6 +29,6 @@ output "subnet_ids" {
 
 output "nat_gateway_public_ip" {
   description = "Public IP address of the NAT Gateway"
-  value       = module.nat_gateway.public_ip_address
+  value       = azurerm_public_ip.nat_gateway.ip_address
 }
 

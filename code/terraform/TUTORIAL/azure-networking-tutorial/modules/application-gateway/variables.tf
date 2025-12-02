@@ -134,6 +134,30 @@ variable "frontend_ip_configurations" {
   }))
 }
 
+variable "frontend_ports" {
+  description = <<-EOT
+    List of frontend ports.
+    Frontend ports define which ports Application Gateway listens on.
+    
+    Example:
+    frontend_ports = [
+      {
+        name = "http-port"
+        port = 80
+      },
+      {
+        name = "https-port"
+        port = 443
+      }
+    ]
+  EOT
+  type = list(object({
+    name = string
+    port = number
+  }))
+  default = []
+}
+
 variable "backend_address_pools" {
   description = <<-EOT
     List of backend address pools.

@@ -352,6 +352,22 @@ module "load_balancer" {
 }
 
 # ----------------------------------------------------------------------------
+# Public IP for NAT Gateway
+# ----------------------------------------------------------------------------
+resource "azurerm_public_ip" "nat_gateway" {
+  name                = "pip-nat-gateway"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  
+  tags = {
+    Environment = "Example"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# ----------------------------------------------------------------------------
 # NAT Gateway Module
 # ----------------------------------------------------------------------------
 # Provides outbound connectivity for VMs in private subnets
@@ -364,20 +380,32 @@ module "nat_gateway" {
   location            = azurerm_resource_group.main.location
   nat_gateway_name     = "nat-multi-tier"
   
-  # Public IP for NAT Gateway
-  public_ip_allocation_method = "Static"
-  public_ip_sku               = "Standard"
-  
-  # Associate with subnets that need outbound connectivity
-  subnet_ids = [
-    module.vnet.subnet_ids["web-subnet"],
-    module.vnet.subnet_ids["app-subnet"],
-    module.vnet.subnet_ids["db-subnet"]
-  ]
+  # Public IP IDs (must be Standard SKU)
+  public_ip_address_ids = [azurerm_public_ip.nat_gateway.id]
   
   tags = {
     Environment = "Example"
     ManagedBy   = "Terraform"
   }
+}
+
+# ----------------------------------------------------------------------------
+# NAT Gateway Subnet Associations
+# ----------------------------------------------------------------------------
+# Associate NAT Gateway with subnets that need outbound connectivity
+# ----------------------------------------------------------------------------
+resource "azurerm_subnet_nat_gateway_association" "web" {
+  subnet_id      = module.vnet.subnet_ids["web-subnet"]
+  nat_gateway_id = module.nat_gateway.nat_gateway_id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "app" {
+  subnet_id      = module.vnet.subnet_ids["app-subnet"]
+  nat_gateway_id = module.nat_gateway.nat_gateway_id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "db" {
+  subnet_id      = module.vnet.subnet_ids["db-subnet"]
+  nat_gateway_id = module.nat_gateway.nat_gateway_id
 }
 
