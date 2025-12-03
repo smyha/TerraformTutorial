@@ -2,16 +2,19 @@ package test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terratest/modules/random"
 	"strings"
-
-	"github.com/gruntwork-io/terratest/modules/http-helper"
-
-	"github.com/gruntwork-io/terratest/modules/terraform"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terratest/modules/http-helper"
+	"github.com/gruntwork-io/terratest/modules/random"
+	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
+// TestHelloWorldAppExample deploys the hello-world-app standalone example and
+// performs a real HTTP GET against the ALB to ensure the rendered page returns
+// a 200 and contains the expected greeting. The MySQL config is stubbed out
+// because this test focuses on the app tier wiring.
 func TestHelloWorldAppExample(t *testing.T) {
 
 	t.Parallel()

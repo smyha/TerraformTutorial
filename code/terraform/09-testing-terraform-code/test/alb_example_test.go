@@ -11,8 +11,11 @@ import (
 	"time"
 )
 
+// TestAlbExample provisions the complete ALB example and makes an HTTP request
+// against the DNS name to assert that the default action returns a 404. This
+// is a classic "end-to-end" Terratest that proves the infrastructure actually
+// works once deployed (init/apply + integration checks).
 func TestAlbExample(t *testing.T) {
-
 	t.Parallel()
 
 	opts := &terraform.Options{
@@ -54,6 +57,9 @@ func TestAlbExample(t *testing.T) {
 
 }
 
+// TestAlbExamplePlan runs terraform plan and inspects both the resource counts
+// and the structured plan output. This keeps the test fast and is useful for
+// validating expected drift/add/change counts without deploying anything.
 func TestAlbExamplePlan(t *testing.T) {
 	t.Parallel()
 
