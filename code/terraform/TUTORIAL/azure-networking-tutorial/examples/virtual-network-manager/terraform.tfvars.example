@@ -1,0 +1,253 @@
+# ============================================================================
+# Azure Virtual Network Manager Example - Terraform Variables
+# ============================================================================
+# Copy this file to terraform.tfvars and update with your values
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Azure Configuration
+# ----------------------------------------------------------------------------
+location            = "eastus"
+resource_group_name = "rg-network-manager-example"
+# Or leave empty to auto-create:
+# resource_group_name = ""
+# project_name        = "myproject"
+# application_name    = "vnm"
+# environment         = "prod"
+
+# ----------------------------------------------------------------------------
+# Network Manager Configuration
+# ----------------------------------------------------------------------------
+network_manager_name        = "nwm-example"
+network_manager_description = "Network Manager for centralized network governance"
+
+# ----------------------------------------------------------------------------
+# Scope Configuration
+# ----------------------------------------------------------------------------
+# Option 1: Subscription Scope (for subscription-specific management)
+scope_subscription_ids = [
+  "00000000-0000-0000-0000-000000000000"  # Replace with your subscription ID
+]
+
+# Option 2: Management Group Scope (for enterprise-wide governance)
+# scope_management_group_ids = [
+#   "/providers/Microsoft.Management/managementGroups/Enterprise"
+# ]
+
+scope_accesses = ["Connectivity", "SecurityAdmin", "Routing"]
+
+# ----------------------------------------------------------------------------
+# Network Groups
+# ----------------------------------------------------------------------------
+network_groups = {
+  "production-vnets" = {
+    description            = "Production virtual networks"
+    static_member_vnet_ids = [
+      # Replace with your actual VNet IDs
+      # "/subscriptions/xxx/resourceGroups/rg-prod/providers/Microsoft.Network/virtualNetworks/vnet-prod-1",
+      # "/subscriptions/xxx/resourceGroups/rg-prod/providers/Microsoft.Network/virtualNetworks/vnet-prod-2"
+    ]
+  }
+  "development-vnets" = {
+    description            = "Development virtual networks"
+    static_member_vnet_ids = [
+      # "/subscriptions/xxx/resourceGroups/rg-dev/providers/Microsoft.Network/virtualNetworks/vnet-dev-1"
+    ]
+  }
+  "shared-services-vnets" = {
+    description            = "Shared services virtual networks"
+    static_member_vnet_ids = [
+      # "/subscriptions/xxx/resourceGroups/rg-shared/providers/Microsoft.Network/virtualNetworks/vnet-shared"
+    ]
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Connectivity Configurations
+# ----------------------------------------------------------------------------
+connectivity_configurations = {
+  "hub-spoke-production" = {
+    topology                        = "HubAndSpoke"
+    network_group_names            = ["production-vnets"]
+    group_connectivity              = "None"  # Spokes don't connect to each other
+    use_hub_gateway                 = true    # Spokes can use hub's VPN/ExpressRoute gateway
+    delete_existing_peering_enabled = false
+    description                     = "Hub-and-spoke topology for production VNets"
+    hub = {
+      resource_id   = "/subscriptions/xxx/resourceGroups/rg-hub/providers/Microsoft.Network/virtualNetworks/vnet-hub"
+      resource_type = "Microsoft.Network/virtualNetworks"
+    }
+  }
+  "hub-spoke-development" = {
+    topology                        = "HubAndSpoke"
+    network_group_names            = ["development-vnets"]
+    group_connectivity              = "None"
+    use_hub_gateway                 = false
+    delete_existing_peering_enabled = false
+    description                     = "Hub-and-spoke topology for development VNets"
+    hub = {
+      resource_id   = "/subscriptions/xxx/resourceGroups/rg-hub/providers/Microsoft.Network/virtualNetworks/vnet-hub"
+      resource_type = "Microsoft.Network/virtualNetworks"
+    }
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Configurations
+# ----------------------------------------------------------------------------
+security_admin_configurations = {
+  "security-production" = {
+    network_group_names = ["production-vnets"]
+    description         = "Security admin rules for production VNets"
+  }
+  "security-development" = {
+    network_group_names = ["development-vnets"]
+    description         = "Security admin rules for development VNets"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Rule Collections
+# ----------------------------------------------------------------------------
+security_admin_rule_collections = {
+  "deny-internet-production" = {
+    security_admin_configuration_name = "security-production"
+    network_group_names               = ["production-vnets"]
+    description                       = "Deny internet traffic for production"
+  }
+  "allow-internal-production" = {
+    security_admin_configuration_name = "security-production"
+    network_group_names               = ["production-vnets"]
+    description                       = "Allow internal traffic for production"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Rules
+# ----------------------------------------------------------------------------
+security_admin_rules = {
+  "deny-all-internet-inbound-prod" = {
+    rule_collection_name            = "deny-internet-production"
+    priority                        = 100
+    direction                       = "Inbound"
+    action                          = "Deny"
+    protocol                        = "Any"
+    source_address_prefix_type      = "ServiceTag"
+    source_address_prefix           = "Internet"
+    destination_address_prefix_type = "IPPrefix"
+    destination_address_prefix      = "0.0.0.0/0"
+    source_port_ranges              = ["0-65535"]
+    destination_port_ranges         = ["0-65535"]
+    description                     = "Deny all inbound internet traffic to production VNets"
+  }
+  "allow-internal-vnet-prod" = {
+    rule_collection_name            = "allow-internal-production"
+    priority                        = 200
+    direction                       = "Inbound"
+    action                          = "Allow"
+    protocol                        = "Any"
+    source_address_prefix_type      = "ServiceTag"
+    source_address_prefix           = "VirtualNetwork"
+    destination_address_prefix_type = "IPPrefix"
+    destination_address_prefix      = "0.0.0.0/0"
+    source_port_ranges              = []
+    destination_port_ranges         = []
+    description                     = "Allow internal VNet traffic for production"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Configurations
+# ----------------------------------------------------------------------------
+routing_configurations = {
+  "routing-production" = {
+    network_group_names = ["production-vnets"]
+    description         = "Routing configuration for production VNets - force traffic through firewall"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Rule Collections
+# ----------------------------------------------------------------------------
+routing_rule_collections = {
+  "firewall-routing-production" = {
+    routing_configuration_name = "routing-production"
+    network_group_names        = ["production-vnets"]
+    description                = "Route all traffic through Azure Firewall"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Rules
+# ----------------------------------------------------------------------------
+routing_rules = {
+  "route-internet-to-firewall" = {
+    rule_collection_name = "firewall-routing-production"
+    description          = "Route all internet traffic (0.0.0.0/0) through Azure Firewall"
+    destination_type     = "AddressPrefix"
+    destination_address  = "0.0.0.0/0"
+    next_hop_type        = "VirtualAppliance"
+    next_hop_address     = "10.0.1.4"  # Replace with your Azure Firewall private IP
+  }
+  "route-azure-storage" = {
+    rule_collection_name = "firewall-routing-production"
+    description          = "Route Azure Storage traffic through firewall"
+    destination_type     = "ServiceTag"
+    destination_address  = "Storage"
+    next_hop_type        = "VirtualAppliance"
+    next_hop_address     = "10.0.1.4"  # Replace with your Azure Firewall private IP
+  }
+  "route-azure-keyvault" = {
+    rule_collection_name = "firewall-routing-production"
+    description          = "Route Azure Key Vault traffic through firewall"
+    destination_type     = "ServiceTag"
+    destination_address  = "AzureKeyVault"
+    next_hop_type        = "VirtualAppliance"
+    next_hop_address     = "10.0.1.4"  # Replace with your Azure Firewall private IP
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Deployments
+# ----------------------------------------------------------------------------
+# NOTE: Configuration IDs need to be populated after first terraform apply
+# Step 1: Run terraform apply (creates configurations)
+# Step 2: Get configuration IDs from outputs
+# Step 3: Update this section with actual IDs and run terraform apply again
+# ----------------------------------------------------------------------------
+deployments = {
+  "deploy-connectivity-eastus" = {
+    location          = "eastus"
+    scope_access      = "Connectivity"
+    configuration_ids = [
+      # These will be populated after first apply
+      # Use: terraform output connectivity_configuration_ids
+    ]
+  }
+  "deploy-security-eastus" = {
+    location          = "eastus"
+    scope_access      = "SecurityAdmin"
+    configuration_ids = [
+      # These will be populated after first apply
+      # Use: terraform output security_admin_configuration_ids
+    ]
+  }
+  "deploy-routing-eastus" = {
+    location          = "eastus"
+    scope_access      = "Routing"
+    configuration_ids = [
+      # These will be populated after first apply
+      # Use: terraform output routing_configuration_ids
+    ]
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Tags
+# ----------------------------------------------------------------------------
+tags = {
+  Environment = "Example"
+  ManagedBy   = "Terraform"
+  Purpose     = "Network Manager Demo"
+}
+

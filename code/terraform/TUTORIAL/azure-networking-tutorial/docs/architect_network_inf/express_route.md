@@ -7,6 +7,10 @@ Azure ExpressRoute provides private, dedicated connectivity between your on-prem
 - **Greater reliability**
 - **Higher bandwidth** (50 Mbps to 10 Gbps)
 
+**Learn more:**
+- [ExpressRoute Overview](https://learn.microsoft.com/en-us/azure/expressroute/expressroute-introduction)
+- [ExpressRoute Documentation](https://learn.microsoft.com/en-us/azure/expressroute/)
+
 An ExpressRoute circuit is the logical connection between your on-premises infrastructure and the Microsoft Cloud. A connectivity provider implements that connection, although some organizations use multiple connectivity providers for redundancy reasons. Each circuit has a fixed bandwidth of either 50, 100, 200 Mbps or 500 Mbps, or 1 Gbps or 10 Gbps, and each of those circuits map to a connectivity provider and a peering location. In addition, each ExpressRoute circuit has default quotas and limits.
 
 An ExpressRoute circuit isn't equivalent to a network connection or a network device. Each circuit is defined by a GUID, called a service or s-key. This s-key provides the connectivity link between Microsoft, your connectivity provider, and your organization; it isn't a cryptographic secret. Each s-key has a one-to-one mapping to an Azure ExpressRoute circuit.
@@ -14,6 +18,9 @@ An ExpressRoute circuit isn't equivalent to a network connection or a network de
 Each circuit can have up to two peerings, which are a pair of BGP sessions that are configured for redundancy.
 
 ExpressRoute also supports connectivity to Microsoft cloud services like **Microsoft 365** and **Dynamics 365**.
+
+## ExpressRoute Architecture
+
 ```mermaid
 graph TD
     A[On-Premises Network] --> B[Connectivity Provider]
@@ -21,6 +28,16 @@ graph TD
     C --> D[Microsoft Cloud]
     D --> E[Azure Services]
     D --> F[Microsoft 365 / Dynamics 365]
+    
+    subgraph "Peering Types"
+        G[Private Peering<br/>Azure Compute]
+        H[Microsoft Peering<br/>SaaS Services]
+    end
+    
+    C --> G
+    C --> H
+    G --> E
+    H --> F
 ```
 
 **Key Advantages**
@@ -66,16 +83,49 @@ Azure private peering connects to Azure compute services such as virtual machine
 
 You can connect only one virtual network to the private peering domain.
 
+**Private Peering Architecture:**
+```mermaid
+graph TB
+    OnPrem[On-Premises Network<br/>192.168.0.0/16] --> ERCircuit[ExpressRoute Circuit]
+    ERCircuit --> PrivatePeering[Private Peering<br/>BGP Session]
+    PrivatePeering --> AzureVNet[Azure Virtual Network<br/>10.0.0.0/16]
+    AzureVNet --> VMs[Azure VMs<br/>10.0.1.10, 10.0.1.11]
+    
+    OnPrem -.->|BGP Routes| PrivatePeering
+    PrivatePeering -.->|BGP Routes| OnPrem
+```
+
+**Learn more:**
+- [ExpressRoute Private Peering](https://learn.microsoft.com/en-us/azure/expressroute/expressroute-circuit-peerings)
+- [Configure Private Peering](https://learn.microsoft.com/en-us/azure/expressroute/expressroute-howto-routing-portal-resource-manager)
+
 **Monitoring ExpressRoute**
 - Use **Network Performance Monitor** for check the health for following areas:
   - Availability
   - Connectivity to VNets
   - Bandwidth utilization
 
+**ExpressRoute Monitoring:**
+```mermaid
+graph TB
+    ERCircuit[ExpressRoute Circuit] --> Monitor[Network Performance Monitor]
+    Monitor --> Metrics[Key Metrics]
+    Metrics --> Availability[Availability<br/>Uptime %]
+    Metrics --> Connectivity[Connectivity<br/>To VNets]
+    Metrics --> Bandwidth[Bandwidth Utilization<br/>Mbps]
+    
+    Monitor --> Alerts[Azure Monitor Alerts]
+    Alerts --> Action[Automated Actions]
+```
+
 - Use ExpressRoute for sensitive data and high-volume workloads.
 - Combine with VPN Gateway for hybrid scenarios.
 - Plan redundancy with multiple circuits and providers.
 - Monitor health and performance regularly.
+
+**Learn more:**
+- [Monitor ExpressRoute](https://learn.microsoft.com/en-us/azure/expressroute/expressroute-monitoring-metrics-alerts)
+- [ExpressRoute Monitoring Best Practices](https://learn.microsoft.com/en-us/azure/expressroute/expressroute-monitoring-metrics-alerts)
 
  **Comparison: ExpressRoute vs VPN Gateway**
 | Feature             | ExpressRoute                 | VPN Gateway                 |

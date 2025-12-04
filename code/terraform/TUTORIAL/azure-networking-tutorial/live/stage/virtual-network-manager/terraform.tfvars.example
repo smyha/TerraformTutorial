@@ -1,0 +1,236 @@
+# ============================================================================
+# Terragrunt Configuration Variables - Virtual Network Manager (Stage)
+# ============================================================================
+# Copy this file to terraform.tfvars and update with your values
+# Terragrunt will automatically load terraform.tfvars if it exists
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Basic Configuration
+# ----------------------------------------------------------------------------
+network_manager_name = "nwm-stage"
+location             = "eastus"
+resource_group_name  = "rg-network-management-stage"
+
+# Or leave empty to auto-create resource group:
+# resource_group_name = ""
+# project_name        = "myproject"
+# application_name    = "vnm"
+# environment         = "stage"
+
+# ----------------------------------------------------------------------------
+# Scope Configuration
+# ----------------------------------------------------------------------------
+# Subscription IDs for subscription scope
+scope_subscription_ids = [
+  "00000000-0000-0000-0000-000000000000"  # Replace with your subscription ID
+]
+
+# Or use Management Group scope (uncomment if needed):
+# scope_management_group_ids = [
+#   "/providers/Microsoft.Management/managementGroups/Enterprise"
+# ]
+
+scope_accesses = ["Connectivity", "SecurityAdmin", "Routing"]
+
+# ----------------------------------------------------------------------------
+# Network Groups
+# ----------------------------------------------------------------------------
+network_groups = {
+  "production-vnets" = {
+    description            = "Production virtual networks in stage environment"
+    static_member_vnet_ids = [
+      # Add your VNet IDs here
+      # "/subscriptions/xxx/resourceGroups/rg-prod/providers/Microsoft.Network/virtualNetworks/vnet-prod-1"
+    ]
+  }
+  "development-vnets" = {
+    description            = "Development virtual networks in stage environment"
+    static_member_vnet_ids = [
+      # "/subscriptions/xxx/resourceGroups/rg-dev/providers/Microsoft.Network/virtualNetworks/vnet-dev-1"
+    ]
+  }
+  "shared-services-vnets" = {
+    description            = "Shared services virtual networks"
+    static_member_vnet_ids = [
+      # "/subscriptions/xxx/resourceGroups/rg-shared/providers/Microsoft.Network/virtualNetworks/vnet-shared"
+    ]
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Connectivity Configurations
+# ----------------------------------------------------------------------------
+# Note: Hub VNet ID will be resolved from dependency.hub_vnet.outputs.vnet_id
+# Update the hub resource_id in terraform.tfvars if not using dependency
+connectivity_configurations = {
+  "hub-spoke-production" = {
+    topology                        = "HubAndSpoke"
+    network_group_names            = ["production-vnets"]
+    group_connectivity              = "None"
+    use_hub_gateway                 = true
+    delete_existing_peering_enabled = false
+    description                     = "Hub-and-spoke topology for production VNets"
+    hub = {
+      resource_id   = ""  # Will be resolved from dependency if empty
+      resource_type = "Microsoft.Network/virtualNetworks"
+    }
+  }
+  "hub-spoke-development" = {
+    topology                        = "HubAndSpoke"
+    network_group_names            = ["development-vnets"]
+    group_connectivity              = "None"
+    use_hub_gateway                 = false
+    delete_existing_peering_enabled = false
+    description                     = "Hub-and-spoke topology for development VNets"
+    hub = {
+      resource_id   = ""  # Will be resolved from dependency if empty
+      resource_type = "Microsoft.Network/virtualNetworks"
+    }
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Configurations
+# ----------------------------------------------------------------------------
+security_admin_configurations = {
+  "security-production" = {
+    network_group_names = ["production-vnets"]
+    description         = "Security admin rules for production VNets"
+  }
+  "security-development" = {
+    network_group_names = ["development-vnets"]
+    description         = "Security admin rules for development VNets"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Rule Collections
+# ----------------------------------------------------------------------------
+security_admin_rule_collections = {
+  "deny-internet-production" = {
+    security_admin_configuration_name = "security-production"
+    network_group_names               = ["production-vnets"]
+    description                       = "Deny internet traffic for production"
+  }
+  "allow-internal-production" = {
+    security_admin_configuration_name = "security-production"
+    network_group_names               = ["production-vnets"]
+    description                       = "Allow internal traffic for production"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Security Admin Rules
+# ----------------------------------------------------------------------------
+security_admin_rules = {
+  "deny-all-internet-inbound-prod" = {
+    rule_collection_name            = "deny-internet-production"
+    priority                        = 100
+    direction                       = "Inbound"
+    action                          = "Deny"
+    protocol                        = "Any"
+    source_address_prefix_type      = "ServiceTag"
+    source_address_prefix           = "Internet"
+    destination_address_prefix_type = "IPPrefix"
+    destination_address_prefix      = "0.0.0.0/0"
+    source_port_ranges              = ["0-65535"]
+    destination_port_ranges         = ["0-65535"]
+    description                     = "Deny all inbound internet traffic to production VNets"
+  }
+  "allow-internal-vnet-prod" = {
+    rule_collection_name            = "allow-internal-production"
+    priority                        = 200
+    direction                       = "Inbound"
+    action                          = "Allow"
+    protocol                        = "Any"
+    source_address_prefix_type      = "ServiceTag"
+    source_address_prefix           = "VirtualNetwork"
+    destination_address_prefix_type = "IPPrefix"
+    destination_address_prefix      = "0.0.0.0/0"
+    source_port_ranges              = []
+    destination_port_ranges         = []
+    description                     = "Allow internal VNet traffic for production"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Configurations
+# ----------------------------------------------------------------------------
+routing_configurations = {
+  "routing-production" = {
+    network_group_names = ["production-vnets"]
+    description         = "Routing configuration for production VNets - force traffic through firewall"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Rule Collections
+# ----------------------------------------------------------------------------
+routing_rule_collections = {
+  "firewall-routing-production" = {
+    routing_configuration_name = "routing-production"
+    network_group_names        = ["production-vnets"]
+    description                = "Route all traffic through Azure Firewall"
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Routing Rules
+# ----------------------------------------------------------------------------
+# Note: Firewall IP will be resolved from dependency.firewall.outputs.firewall_private_ip
+# Update next_hop_address in terraform.tfvars if not using dependency
+routing_rules = {
+  "route-internet-to-firewall" = {
+    rule_collection_name = "firewall-routing-production"
+    description          = "Route all internet traffic (0.0.0.0/0) through Azure Firewall"
+    destination_type     = "AddressPrefix"
+    destination_address  = "0.0.0.0/0"
+    next_hop_type        = "VirtualAppliance"
+    next_hop_address     = ""  # Will be resolved from dependency if empty
+  }
+  "route-azure-storage" = {
+    rule_collection_name = "firewall-routing-production"
+    description          = "Route Azure Storage traffic through firewall"
+    destination_type     = "ServiceTag"
+    destination_address  = "Storage"
+    next_hop_type        = "VirtualAppliance"
+    next_hop_address     = ""  # Will be resolved from dependency if empty
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Deployments
+# ----------------------------------------------------------------------------
+# NOTE: Configuration IDs need to be populated after first terragrunt apply
+# Step 1: Run terragrunt apply (creates configurations)
+# Step 2: Get configuration IDs from outputs
+# Step 3: Update this section with actual IDs and run terragrunt apply again
+# ----------------------------------------------------------------------------
+deployments = {
+  "deploy-connectivity-eastus" = {
+    location          = "eastus"
+    scope_access      = "Connectivity"
+    configuration_ids = []  # Populate after first apply
+  }
+  "deploy-security-eastus" = {
+    location          = "eastus"
+    scope_access      = "SecurityAdmin"
+    configuration_ids = []  # Populate after first apply
+  }
+  "deploy-routing-eastus" = {
+    location          = "eastus"
+    scope_access      = "Routing"
+    configuration_ids = []  # Populate after first apply
+  }
+}
+
+# ----------------------------------------------------------------------------
+# Tags
+# ----------------------------------------------------------------------------
+tags = {
+  Environment = "stage"
+  Component   = "virtual-network-manager"
+  ManagedBy   = "Terragrunt"
+}
+

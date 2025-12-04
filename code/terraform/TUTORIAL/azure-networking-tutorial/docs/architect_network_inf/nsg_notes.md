@@ -4,7 +4,11 @@
 
 As part of the project to move your ERP system to Azure, you must ensure that servers have proper isolation so that only allowed systems can make network connections. For example, you have database servers that store data for your ERP app. You want to block prohibited systems from communicating with the servers over the network, while allowing app servers to communicate with the database servers.
 
-    - ERP : Enterprise Resource Planning : business management software that allows you to control and automate all key flows within a company.
+- ERP : Enterprise Resource Planning : business management software that allows you to control and automate all key flows within a company.
+
+**Learn more:**
+- [Network Security Groups Overview](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview)
+- [NSG Best Practices](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-group-best-practices)
 
 ### NSG - Network security groups 
 
@@ -54,15 +58,51 @@ In this manufacturing-company scenario, network security groups can help you sec
   - Action: Allow or deny the traffic
 - Connections are **stateful**: return traffic is automatically allowed.
 
+**Security Rule Evaluation:**
+```mermaid
+flowchart TD
+    Packet[Incoming Packet] --> Extract[Extract Five-Tuple:<br/>Source IP, Source Port,<br/>Destination IP, Dest Port, Protocol]
+    Extract --> Sort[Sort Rules by Priority<br/>Lower Number = Higher Priority]
+    Sort --> Check{Check Rules in Order}
+    Check -->|Match Allow Rule| Allow[Allow Traffic]
+    Check -->|Match Deny Rule| Deny[Deny Traffic]
+    Check -->|No Match| Default[Apply Default Rules]
+    Default -->|Default Allow| Allow
+    Default -->|Default Deny| Deny
+```
+
 **Example:**
 - Allow inbound RDP (port 3389) with priority 200.
 - Deny inbound RDP with priority 150 → Deny rule takes precedence.
+
+**Learn more:**
+- [NSG Security Rules](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview#security-rules)
+- [How NSG Rules Work](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-group-how-it-works)
 
 **Default Rules**
 - Created automatically by Azure.
 - Allow connectivity within a virtual network and from Azure load balancers.
 - Allow outbound internet traffic.
 - Deny inbound traffic from the internet.
+
+**Default Rules Flow:**
+```mermaid
+graph LR
+    subgraph "Default Inbound Rules"
+        DI1[Priority 65000<br/>AllowVnetInbound<br/>Allow VNet Traffic]
+        DI2[Priority 65001<br/>AllowAzureLoadBalancerInbound<br/>Allow Load Balancer]
+        DI3[Priority 65500<br/>DenyAllInbound<br/>Deny All Other]
+    end
+    
+    subgraph "Default Outbound Rules"
+        DO1[Priority 65000<br/>AllowVnetOutbound<br/>Allow VNet Traffic]
+        DO2[Priority 65001<br/>AllowInternetOutbound<br/>Allow Internet]
+        DO3[Priority 65500<br/>DenyAllOutbound<br/>Deny All Other]
+    end
+```
+
+**Learn more:**
+- [NSG Default Rules](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview#default-security-rules)
 
 #### INBOUND
 | Priority            | Rule name                | Description                 |
@@ -84,6 +124,28 @@ You can use service tags to simplify network security group security even furthe
 
 Service tags simplify security for VMs and Azure virtual networks by allowing you to restrict access by resources or services. Service tags represent a group of IP addresses, and help simplify the configuration of your security rules. For resources that you can specify by using a tag, you don't need to know the IP address or port details.
 
+**Service Tags Architecture:**
+```mermaid
+graph TB
+    NSG[Network Security Group] --> Rule[Security Rule]
+    Rule --> ServiceTag[Service Tag]
+    
+    ServiceTag --> VirtualNetwork[VirtualNetwork<br/>All VNet Addresses]
+    ServiceTag --> Storage[Storage<br/>Azure Storage IPs]
+    ServiceTag --> SQL[SQL<br/>SQL Database IPs]
+    ServiceTag --> AppService[AppService<br/>App Service IPs]
+    ServiceTag --> Internet[Internet<br/>Public IPs]
+    
+    VirtualNetwork --> VMs[VMs in VNet]
+    Storage --> StorageAccount[Storage Accounts]
+    SQL --> SQLDB[SQL Databases]
+    AppService --> WebApps[Web Apps]
+```
+
+**Learn more:**
+- [Service Tags Overview](https://learn.microsoft.com/en-us/azure/virtual-network/service-tags-overview)
+- [Available Service Tags](https://learn.microsoft.com/en-us/azure/virtual-network/service-tags-overview#available-service-tags)
+
 - Simplify rules by using tags representing Azure services.
   - VirtualNetwork: Represents all virtual network addresses anywhere in Azure, and in your on-premises network if you're using hybrid connectivity.
   
@@ -102,6 +164,8 @@ Service tags simplify security for VMs and Azure virtual networks by allowing yo
 
 **App Security Groups**
 
+![App Security Groups with NSG](./img/2-asg-nsg.svg)
+
 - Group network interfaces for easier rule management.
 - Apply rules to workloads instead of individual VMs.
 
@@ -111,9 +175,48 @@ You can use app security groups within a network security group to apply a secur
 
 An app security group lets you group network interfaces together. You can then use that app security group as a source or destination rule within a network security group.
 
+**App Security Groups Architecture:**
+```mermaid
+graph TB
+    subgraph "App Security Groups"
+        WebASG[WebServers ASG<br/>Ports: 80, 8080]
+        DBASG[DatabaseServers ASG<br/>Port: 1433]
+        AppASG[AppServers ASG<br/>Ports: 443, 8080]
+    end
+    
+    subgraph "VMs"
+        WebVM1[Web VM 1<br/>10.1.1.10]
+        WebVM2[Web VM 2<br/>10.1.1.11]
+        DBVM1[DB VM 1<br/>10.2.1.10]
+        AppVM1[App VM 1<br/>10.3.1.10]
+    end
+    
+    NSG[Network Security Group] --> Rule1[Rule: Allow WebServers → DatabaseServers<br/>Port 1433]
+    NSG --> Rule2[Rule: Allow Internet → WebServers<br/>Ports 80, 8080]
+    
+    WebVM1 --> WebASG
+    WebVM2 --> WebASG
+    DBVM1 --> DBASG
+    AppVM1 --> AppASG
+    
+    Rule1 --> WebASG
+    Rule1 --> DBASG
+    Rule2 --> WebASG
+```
+
 **Example:**
 - Web servers group: allow ports 80 and 8080.
 - Database servers group: allow port 1433.
+
+**Benefits:**
+- **Simplified Management**: Define rules once for a group, apply to all members
+- **Dynamic Membership**: VMs automatically inherit rules when added to the group
+- **Workload-Based Security**: Security follows application logic, not network topology
+- **Scalability**: Easy to add new VMs without modifying NSG rules
+
+**Learn more:**
+- [App Security Groups Overview](https://learn.microsoft.com/en-us/azure/virtual-network/application-security-groups)
+- [How to Use App Security Groups](https://learn.microsoft.com/en-us/azure/virtual-network/tutorial-filter-network-traffic)
 
 ## **Mermaid Diagram: NSG Evaluation Flow**
 ```mermaid
@@ -141,6 +244,8 @@ graph TD
     F --> H[Group Network Interfaces]
 ```
 
+![Example NSG Configuration](./img/3-example-NSG.svg)
+
 ------------------------------------------------------------------------------------------------------
 
 ## Security Endpoints : Secure network access to PaaS services with virtual network service endpoints
@@ -156,6 +261,28 @@ Virtual Network Service Endpoints extend your private address space in Azure by 
 - Keep service traffic on the Azure backbone (not exposed to the internet).
 
 By default, Azure services (like Storage and SQL Database) have public IP addresses and are accessible from the internet. Service endpoints provide isolation and reduce the attack surface.
+
+**Service Endpoint Traffic Flow:**
+```mermaid
+sequenceDiagram
+    participant VM as VM in VNet
+    participant VNet as Virtual Network
+    participant Endpoint as Service Endpoint
+    participant Service as Azure PaaS Service
+    
+    VM->>VNet: Request to Service
+    VNet->>Endpoint: Route via Service Endpoint
+    Endpoint->>Service: Direct Connection<br/>Azure Backbone
+    Service->>Endpoint: Response
+    Endpoint->>VNet: Return via Endpoint
+    VNet->>VM: Deliver Response
+    
+    Note over VM,Service: Traffic never exposed to Internet
+```
+
+**Learn more:**
+- [Virtual Network Service Endpoints](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-service-endpoints-overview)
+- [Service Endpoint Policies](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-service-endpoint-policies-overview)
 
 Use virtual network service endpoints to extend your private address space in Azure by providing a direct connection to your Azure services. Service endpoints let you secure your Azure resources to only your virtual network. Service traffic will remain on the Azure backbone and doesn't go out to the internet.
 
@@ -192,7 +319,28 @@ When you enable a service endpoint, you restrict the flow of traffic and enable 
 - Before enabling: traffic routes via Internet.
 - After enabling: traffic routes via VirtualNetworkServiceEndpoint.
 
+**Route Table Changes:**
+```mermaid
+graph LR
+    subgraph "Before Service Endpoint"
+        VM1[VM] --> Route1[Route Table]
+        Route1 -->|Next Hop: Internet| Internet1[Internet]
+        Internet1 --> Service1[PaaS Service<br/>Public IP]
+    end
+    
+    subgraph "After Service Endpoint"
+        VM2[VM] --> Route2[Route Table]
+        Route2 -->|Next Hop: VirtualNetworkServiceEndpoint| Endpoint[Service Endpoint]
+        Endpoint --> Service2[PaaS Service<br/>Private Connection]
+    end
+```
+
+**Learn more:**
+- [Service Endpoint Routing](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-service-endpoints-overview#key-benefits)
+
 ### Service endpoints and hybrid networks
+
+![Hybrid Service Endpoint Flow](./img/4-hybrid-service-endpoint-flow.svg)
 
 - Service endpoints do not allow on-premises access by default.
 - For on-premises access:
@@ -202,8 +350,17 @@ When you enable a service endpoint, you restrict the flow of traffic and enable 
 
 By default, each circuit uses two NAT IP addresses to connect to the Azure backbone network. You then need to add these IP addresses into the Azure service resource's IP firewall configuration (for example, Azure Storage).
 
+**Hybrid Connectivity Considerations:**
+- **ExpressRoute NAT**: Required to translate on-premises private IPs to public IPs for service endpoint access
+- **Firewall Configuration**: Must whitelist ExpressRoute NAT IPs in PaaS service firewall
+- **Routing**: Traffic from on-premises routes through ExpressRoute, then uses service endpoints within Azure
+- **Security**: Maintains private connectivity while enabling on-premises access to PaaS services
+
 
 #### **Service Endpoint Concept**
+
+![Example Service Endpoint](./img/5-example-service-endpoint.svg)
+
 ```mermaid
 graph TD
     A[Virtual Network] --> B[VMs]
