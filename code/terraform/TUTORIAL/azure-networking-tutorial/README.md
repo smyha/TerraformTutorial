@@ -47,6 +47,8 @@ azure-networking-tutorial/
 │   ├── firewall-manager/      # Firewall Manager module
 │   ├── traffic-manager/       # Traffic Manager module
 │   └── network-watcher/      # Network Watcher module
+│   └── network-manager/      # Network Manager module
+│   └── Resource-Group/      # Resource Group module   
 ├── examples/                  # Example configurations
 │   ├── basic-vnet/           # Basic Virtual Network
 │   ├── multi-tier-app/        # Multi-tier application
