@@ -52,7 +52,8 @@ resource "azurerm_nat_gateway" "main" {
   
   # Public IP Addresses: Used for outbound connections
   # Each public IP supports up to 64,000 concurrent flows
-  # Multiple IPs can be added for more capacity
+  # Multiple IPs can be added for more capacity (up to 16 public IPs)
+  # Public IPs must be Standard SKU
   dynamic "public_ip_address_ids" {
     for_each = var.public_ip_address_ids
     content {
@@ -60,6 +61,21 @@ resource "azurerm_nat_gateway" "main" {
     }
   }
   
+  # Public IP Prefix: Alternative to individual public IPs
+  # Provides a contiguous range of public IP addresses
+  # Useful for predictable outbound IP addresses
+  # Can use either public_ip_address_ids or public_ip_prefix_ids (or both)
+  dynamic "public_ip_prefix_ids" {
+    for_each = var.public_ip_prefix_ids
+    content {
+      id = public_ip_prefix_ids.value
+    }
+  }
+  
   tags = var.tags
 }
+
+# Validation: Ensure at least one public IP or prefix is provided
+# This validation is done at the Terraform level through variable validation
+# The resource will fail if neither public_ip_address_ids nor public_ip_prefix_ids are provided
 

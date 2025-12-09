@@ -36,3 +36,13 @@ output "dns_record_ids" {
   )
 }
 
+output "resource_group_name" {
+  description = "Name of the resource group (created or existing)"
+  value       = local.resource_group_name
+}
+
+output "resource_group_id" {
+  description = "ID of the resource group if created by this module, null otherwise"
+  value       = try(module.resource_group[0].resource_group_id, null)
+}
+

@@ -30,25 +30,29 @@ This tutorial covers all major Azure networking services:
 ```
 azure-networking-tutorial/
 ├── modules/                    # Reusable Terraform modules
-│   ├── networking/            # Virtual Network module
+│   ├── networking/            # Virtual Network module (legacy)
+│   ├── virtual-network/       # Virtual Network module with UDR support
+│   ├── network-security-group/ # Network Security Group module
 │   ├── load-balancer/         # Load Balancer module
-│   ├── firewall/              # Azure Firewall module
-│   ├── nat-gateway/           # NAT Gateway module
 │   ├── application-gateway/   # Application Gateway module
+│   ├── firewall/              # Azure Firewall module
+│   ├── firewall-manager/      # Firewall Manager module
+│   ├── nat-gateway/           # NAT Gateway module
 │   ├── bastion/               # Azure Bastion module
-│   ├── vpn-gateway/           # VPN Gateway module
+│   ├── virtual-network-gateway/ # Virtual Network Gateway module (includes VPN Gateway)
+│   ├── vpn-gateway/           # VPN Gateway module (alternative implementation)
 │   ├── expressroute/          # ExpressRoute module
 │   ├── virtual-wan/           # Virtual WAN module
+│   ├── route-server/          # Route Server module
 │   ├── front-door/            # Azure Front Door module
 │   ├── cdn/                   # Azure CDN module
-│   ├── dns/                   # Azure DNS module
+│   ├── traffic-manager/       # Traffic Manager module
+│   ├── dns/                   # Azure DNS module (Public & Private)
 │   ├── private-link/          # Private Link module
 │   ├── ddos-protection/       # DDoS Protection module
-│   ├── firewall-manager/      # Firewall Manager module
-│   ├── traffic-manager/       # Traffic Manager module
-│   └── network-watcher/      # Network Watcher module
-│   └── network-manager/      # Network Manager module
-│   └── Resource-Group/      # Resource Group module   
+│   ├── network-watcher/       # Network Watcher module
+│   ├── virtual-network-manager/ # Virtual Network Manager module
+│   └── resource-group/        # Resource Group module
 ├── examples/                  # Example configurations
 │   ├── basic-vnet/           # Basic Virtual Network
 │   ├── multi-tier-app/        # Multi-tier application
@@ -68,6 +72,11 @@ azure-networking-tutorial/
 └── docs/                      # Comprehensive documentation
     ├── AZURE_NETWORKING_COMPLETE_GUIDE.md
     ├── TERRAGRUNT_GUIDE.md   # Terragrunt setup, imports, and moves
+    ├── a700-az104-azure-network/ # Service-specific documentation
+    │   ├── virtual_network/  # Virtual Network documentation
+    │   ├── dns/              # DNS documentation
+    │   ├── route_server/     # Route Server documentation
+    │   └── nat_gateway/      # NAT Gateway documentation
     └── [Service-specific guides]
 ```
 
@@ -75,19 +84,26 @@ azure-networking-tutorial/
 
 ### Core Networking
 
-#### Virtual Network Module (`modules/networking/`)
+#### Virtual Network Module (`modules/virtual-network/`)
 
 Creates a complete Virtual Network infrastructure:
 - Virtual Network with configurable address spaces
 - Subnets with service endpoints and delegations
-- Network Security Groups with custom rules
-- Route Tables with custom routes
+- User-Defined Routes (UDR) with route tables
+- Support for all next hop types (VirtualAppliance, VirtualNetworkGateway, etc.)
 - Optional DDoS Protection integration
+- Custom DNS server configuration
+
+**Key Features:**
+- Route Tables and custom routes
+- Subnet route table associations
+- Effective routes documentation
+- UDR guide included
 
 **Usage:**
 ```hcl
 module "vnet" {
-  source = "./modules/networking"
+  source = "./modules/virtual-network"
   
   resource_group_name = "rg-example"
   location            = "eastus"
@@ -98,10 +114,37 @@ module "vnet" {
     "web-subnet" = {
       address_prefixes = ["10.0.1.0/24"]
       service_endpoints = ["Microsoft.Storage"]
+      route_table_name = "rt-nva"
+    }
+  }
+  
+  route_tables = {
+    "rt-nva" = {
+      disable_bgp_route_propagation = false
+    }
+  }
+  
+  routes = {
+    "route-nva-default" = {
+      name                   = "route-nva-default"
+      route_table_name       = "rt-nva"
+      address_prefix         = "0.0.0.0/0"
+      next_hop_type          = "VirtualAppliance"
+      next_hop_in_ip_address = "10.0.1.10"
     }
   }
 }
 ```
+
+**Documentation:** See `modules/virtual-network/UDR_GUIDE.md` for comprehensive UDR documentation.
+
+#### Network Security Group Module (`modules/network-security-group/`)
+
+Creates Network Security Groups with:
+- Security rules (inbound/outbound)
+- Subnet and network interface associations
+- Custom rule priorities
+- Service tags support
 
 #### Load Balancer Module (`modules/load-balancer/`)
 
@@ -113,6 +156,15 @@ Creates an Azure Load Balancer with:
 - Outbound rules
 - Inbound NAT rules
 
+#### Application Gateway Module (`modules/application-gateway/`)
+
+Creates an Azure Application Gateway with:
+- Layer 7 (HTTP/HTTPS) load balancing
+- SSL termination
+- URL-based routing
+- Web Application Firewall (WAF) support
+- Backend pools and health probes
+
 #### Firewall Module (`modules/firewall/`)
 
 Creates an Azure Firewall with:
@@ -120,13 +172,178 @@ Creates an Azure Firewall with:
 - Application rule collections
 - NAT rule collections
 - Threat Intelligence integration
+- Custom DNS servers
+
+#### Firewall Manager Module (`modules/firewall-manager/`)
+
+Creates Azure Firewall Manager for:
+- Centralized firewall policy management
+- Security policy definitions
+- Multi-firewall governance
 
 #### NAT Gateway Module (`modules/nat-gateway/`)
 
 Creates a NAT Gateway for outbound connectivity:
-- Public IP association
+- Public IP or Public IP Prefix association
 - Subnet association
-- Automatic scaling
+- Automatic scaling (up to 16 IPs, 64,000 flows per IP)
+- Port Address Translation (PAT)
+- Support for up to 50 Gbps throughput
+
+**Key Features:**
+- IPv4 only (IPv6 not supported)
+- Single VNet scope (cannot span multiple VNets)
+- Automatic configuration (no UDR needed)
+- High availability with zone redundancy
+
+#### Bastion Module (`modules/bastion/`)
+
+Creates Azure Bastion for:
+- Secure VM access via browser
+- RDP/SSH without public IPs
+- No VPN or client software required
+- Integrated with Azure Portal
+
+### Connectivity Services
+
+#### Virtual Network Gateway Module (`modules/virtual-network-gateway/`)
+
+Creates a Virtual Network Gateway that includes VPN Gateway functionality:
+- **VPN Gateway**: Site-to-site, point-to-site, and VNet-to-VNet connections
+- **ExpressRoute Gateway**: Private connectivity via ExpressRoute
+- Active-active and active-standby configurations
+- BGP support
+- Custom routes
+
+**Note:** This module implements VPN Gateway as part of Virtual Network Gateway. For a dedicated VPN Gateway implementation, see `modules/vpn-gateway/`.
+
+#### VPN Gateway Module (`modules/vpn-gateway/`)
+
+Alternative VPN Gateway implementation:
+- Site-to-site VPN connections
+- Point-to-site VPN connections
+- VNet-to-VNet connections
+- IPsec/IKE VPN protocols
+
+#### ExpressRoute Module (`modules/expressroute/`)
+
+Creates ExpressRoute circuits for:
+- Private connectivity to Azure
+- Dedicated connection (not over Internet)
+- High bandwidth (up to 100 Gbps)
+- ExpressRoute Gateway configuration
+
+#### Virtual WAN Module (`modules/virtual-wan/`)
+
+Creates Virtual WAN for:
+- Hub-spoke architecture
+- Branch connectivity (VPN/ExpressRoute)
+- Centralized security with Azure Firewall
+- SD-WAN integration
+
+#### Route Server Module (`modules/route-server/`)
+
+Creates Azure Route Server for:
+- Dynamic routing with NVAs via BGP
+- Automatic route propagation
+- Integration with VPN/ExpressRoute Gateways
+- Multiple BGP peer support
+- Simplified NVA deployment
+
+### Application Delivery Services
+
+#### Front Door Module (`modules/front-door/`)
+
+Creates Azure Front Door for:
+- Global load balancing
+- Application acceleration
+- Integrated WAF
+- Edge caching
+- SSL termination
+
+#### CDN Module (`modules/cdn/`)
+
+Creates Azure CDN for:
+- Content delivery network
+- Edge caching
+- Global content distribution
+- HTTPS support
+- Custom domains
+
+#### Traffic Manager Module (`modules/traffic-manager/`)
+
+Creates Azure Traffic Manager for:
+- DNS-based load balancing
+- Multiple routing methods (Priority, Weighted, Performance, Geographic)
+- Health monitoring
+- Multi-region failover
+
+### DNS Services
+
+#### DNS Module (`modules/dns/`)
+
+Creates Azure DNS zones and records:
+- **Public DNS Zones**: Internet-facing DNS hosting
+- **Private DNS Zones**: Internal name resolution
+- All DNS record types (A, AAAA, CNAME, MX, TXT, etc.)
+- Virtual network links for private zones
+- Auto-registration of VM hostnames
+- Domain delegation support
+
+**Key Features:**
+- Public and private DNS zones
+- BGP peer connections for private zones
+- Service endpoints configuration
+- Complete DNS record management
+
+### Security Services
+
+#### Private Link Module (`modules/private-link/`)
+
+Creates Azure Private Link for:
+- Private endpoints for Azure services
+- Private link services
+- Private connectivity without Internet exposure
+- Integration with Private DNS zones
+
+#### DDoS Protection Module (`modules/ddos-protection/`)
+
+Creates DDoS Protection Plan for:
+- DDoS attack mitigation
+- Standard tier protection
+- Attack analytics and alerts
+- Cost protection during attacks
+
+### Monitoring Services
+
+#### Network Watcher Module (`modules/network-watcher/`)
+
+Creates Azure Network Watcher for:
+- Network topology visualization
+- Connection monitoring
+- Packet capture
+- IP flow verification
+- NSG flow logs
+
+### Management Services
+
+#### Virtual Network Manager Module (`modules/virtual-network-manager/`)
+
+Creates Azure Virtual Network Manager for:
+- Centralized network management
+- Network groups and connectivity configurations
+- Security admin rules
+- Routing configurations
+- Cross-VNet management
+
+### Utility Modules
+
+#### Resource Group Module (`modules/resource-group/`)
+
+Creates Azure Resource Groups with:
+- Standardized naming conventions
+- Tag management
+- Environment-based organization
 
 ## Examples
 
@@ -298,46 +515,56 @@ Each module includes detailed documentation:
 ## Services Covered
 
 ### ✅ Core Networking
-- [x] Azure Virtual Network
-- [x] Subnets
-- [x] Network Security Groups
-- [x] Route Tables
+- [x] Azure Virtual Network (`modules/virtual-network/`)
+- [x] Subnets with UDR support
+- [x] Network Security Groups (`modules/network-security-group/`)
+- [x] Route Tables and User-Defined Routes
+- [x] DDoS Protection (`modules/ddos-protection/`)
 
 ### ✅ Load Balancing
-- [x] Azure Load Balancer
-- [x] Azure Application Gateway
-- [x] Azure Front Door
-- [x] Azure Traffic Manager
+- [x] Azure Load Balancer (`modules/load-balancer/`)
+- [x] Azure Application Gateway (`modules/application-gateway/`)
+- [x] Azure Front Door (`modules/front-door/`)
+- [x] Azure Traffic Manager (`modules/traffic-manager/`)
 
 ### ✅ Security
-- [x] Azure Firewall
-- [x] Web Application Firewall (WAF)
-- [x] Azure Bastion
-- [x] Azure Private Link
-- [x] Azure DDoS Protection
-- [x] Azure Firewall Manager
+- [x] Azure Firewall (`modules/firewall/`)
+- [x] Azure Firewall Manager (`modules/firewall-manager/`)
+- [x] Web Application Firewall (WAF) - via Application Gateway
+- [x] Azure Bastion (`modules/bastion/`)
+- [x] Azure Private Link (`modules/private-link/`)
+- [x] Azure DDoS Protection (`modules/ddos-protection/`)
 
 ### ✅ Connectivity
-- [x] Azure VPN Gateway
-- [x] Azure ExpressRoute
-- [x] Azure Virtual WAN
-- [x] Azure NAT Gateway
-- [x] Routing Preference
+- [x] Azure VPN Gateway (`modules/virtual-network-gateway/` and `modules/vpn-gateway/`)
+- [x] Azure ExpressRoute (`modules/expressroute/`)
+- [x] Azure Virtual WAN (`modules/virtual-wan/`)
+- [x] Azure NAT Gateway (`modules/nat-gateway/`)
+- [x] Azure Route Server (`modules/route-server/`)
 
 ### ✅ Application Delivery
-- [x] Azure CDN
-- [x] Azure Front Door
-- [x] Azure Application Gateway
-- [x] Web Application Firewall
+- [x] Azure CDN (`modules/cdn/`)
+- [x] Azure Front Door (`modules/front-door/`)
+- [x] Azure Application Gateway (`modules/application-gateway/`)
+- [x] Web Application Firewall (WAF)
+
+### ✅ DNS Services
+- [x] Azure DNS - Public Zones (`modules/dns/`)
+- [x] Azure DNS - Private Zones (`modules/dns/`)
+- [x] DNS Record Management
+- [x] Domain Delegation
 
 ### ✅ Monitoring
-- [x] Azure Network Watcher
-- [x] Azure Monitor
+- [x] Azure Network Watcher (`modules/network-watcher/`)
+- [x] Azure Monitor (integrated)
+
+### ✅ Management
+- [x] Azure Virtual Network Manager (`modules/virtual-network-manager/`)
+- [x] Resource Group Management (`modules/resource-group/`)
 
 ### ✅ Advanced
-- [x] Azure DNS
-- [x] Internet Analyzer
-- [x] Azure Programmable Connectivity
+- [x] Internet Analyzer (documented)
+- [x] Azure Programmable Connectivity (documented)
 
 ## Service Implementation Details
 
@@ -376,13 +603,16 @@ DNS is crucial for Virtual Networks as it enables resources to communicate using
 **Example Scenario**: In a multi-tier application, the web tier needs to connect to the database. Instead of hardcoding IP addresses, you can use DNS names like `mysql-db.internal` which resolves to the database's private IP. This makes the infrastructure more maintainable and resilient to IP changes.
 
 **Implementation:**
-- **Module**: `modules/networking/`
-- **File**: `modules/networking/main.tf`
-- **Resource**: `azurerm_virtual_network.main` (lines 28-51)
+- **Module**: `modules/virtual-network/` (recommended) or `modules/networking/` (legacy)
+- **File**: `modules/virtual-network/main.tf`
+- **Resource**: `azurerm_virtual_network.main`
 - **Key Features**:
-  - Address space management (line 32)
-  - DDoS Protection Plan integration (lines 37-40)
-  - Custom DNS servers (line 45)
+  - Address space management
+  - DDoS Protection Plan integration
+  - Custom DNS servers
+  - User-Defined Routes (UDR) with route tables
+  - Subnet route table associations
+- **Documentation**: `modules/virtual-network/UDR_GUIDE.md` - Comprehensive UDR guide
 
 #### Subnets
 
@@ -396,14 +626,15 @@ DNS is crucial for Virtual Networks as it enables resources to communicate using
 - **Security isolation**: Isolates application layers (frontend, backend, database)
 
 **Implementation:**
-- **Module**: `modules/networking/`
-- **File**: `modules/networking/main.tf`
-- **Resource**: `azurerm_subnet.main` (lines 66-100)
+- **Module**: `modules/virtual-network/`
+- **File**: `modules/virtual-network/main.tf`
+- **Resource**: `azurerm_subnet.main`
 - **Key Features**:
-  - Subnet address prefixes (line 75)
-  - Service endpoints (line 78)
-  - Service delegations (lines 81-90)
-  - Private endpoint/private link policies (commented, lines 92-100)
+  - Subnet address prefixes
+  - Service endpoints
+  - Service delegations
+  - Private endpoint/private link policies
+  - Route table associations
 
 #### Network Security Groups (NSGs)
 
@@ -417,13 +648,13 @@ DNS is crucial for Virtual Networks as it enables resources to communicate using
 - **Defense in depth**: Provides an additional layer of security in addition to application firewalls
 
 **Implementation:**
-- **Module**: `modules/networking/`
-- **File**: `modules/networking/main.tf`
+- **Module**: `modules/network-security-group/`
+- **File**: `modules/network-security-group/main.tf`
 - **Resources**:
-  - `azurerm_network_security_group.main` (lines 118-125) - Creates NSG
-  - `azurerm_network_security_rule.main` (lines 140-170) - Creates NSG rules
-  - `azurerm_subnet_network_security_group_association.main` (lines 175-190) - Associates NSG to subnets
-- **Example Usage**: `examples/basic-vnet/main.tf` (lines 48-145) - Shows multi-tier NSG configuration
+  - `azurerm_network_security_group.main` - Creates NSG
+  - `azurerm_network_security_rule.main` - Creates NSG rules
+  - `azurerm_subnet_network_security_group_association.main` - Associates NSG to subnets
+- **Alternative**: NSGs can also be created via `modules/virtual-network/` (legacy) or `modules/networking/` (legacy)
 
 #### Route Tables
 
@@ -437,12 +668,13 @@ DNS is crucial for Virtual Networks as it enables resources to communicate using
 - **VPN/ExpressRoute**: Routes traffic to VPN or ExpressRoute gateways
 
 **Implementation:**
-- **Module**: `modules/networking/`
-- **File**: `modules/networking/main.tf`
+- **Module**: `modules/virtual-network/`
+- **File**: `modules/virtual-network/main.tf`
 - **Resources**:
-  - `azurerm_route_table.main` (lines 200-212) - Creates route table
-  - `azurerm_route.main` (lines 230-245) - Creates custom routes
-  - `azurerm_subnet_route_table_association.main` (lines 250-265) - Associates route table to subnets
+  - `azurerm_route_table.main` - Creates route table
+  - `azurerm_route.main` - Creates custom routes with all next hop types
+  - `azurerm_subnet_route_table_association.main` - Associates route table to subnets
+- **Documentation**: `modules/virtual-network/UDR_GUIDE.md` - Complete UDR guide with next hop types and effective routes
 
 #### DDoS Protection
 
@@ -456,10 +688,11 @@ DNS is crucial for Virtual Networks as it enables resources to communicate using
 - **Telemetry**: Provides metrics and logs of DDoS attacks
 
 **Implementation:**
-- **Module**: `modules/networking/`
-- **File**: `modules/networking/main.tf`
-- **Resource**: `azurerm_virtual_network.main.ddos_protection_plan` (lines 37-40)
-- **Note**: Requires a separate DDoS Protection Plan resource (Standard tier)
+- **Module**: `modules/ddos-protection/`
+- **File**: `modules/ddos-protection/main.tf`
+- **Resource**: `azurerm_network_ddos_protection_plan.main`
+- **Integration**: Can be integrated with Virtual Network via `modules/virtual-network/`
+- **Note**: Requires Standard tier for full features (Basic is always enabled)
 
 ### Load Balancing Services
 
@@ -677,16 +910,46 @@ DNS is fundamental to Azure Private Link. When you create a private endpoint, Az
 - **Scalability**: Up to 64,000 concurrent flows per public IP
 - **No SNAT port exhaustion**: Avoids SNAT port exhaustion issues common with Load Balancer
 - **High availability**: Zone redundancy support
+- **Cost effective**: Share public IP addresses across multiple resources
 
 **Implementation:**
 - **Module**: `modules/nat-gateway/`
 - **File**: `modules/nat-gateway/main.tf`
-- **Resource**: `azurerm_nat_gateway.main` (lines 44-65)
+- **Resource**: `azurerm_nat_gateway.main`
 - **Key Features**:
-  - Public IP association (lines 58-62)
-  - Automatic scaling
+  - Public IP or Public IP Prefix association
+  - Automatic scaling (up to 16 IPs)
   - Up to 64,000 concurrent flows per public IP
+  - Port Address Translation (PAT)
   - Zone redundancy support
+  - Up to 50 Gbps throughput
+  - Automatic configuration (no UDR needed)
+- **Documentation**: `docs/a700-az104-azure-network/nat_gateway/nat_gateway.md` - Complete NAT Gateway guide
+
+#### Azure Route Server
+
+**What is it?** Azure Route Server is a fully managed service that enables dynamic routing between Network Virtual Appliances (NVAs) and Azure Virtual Networks using BGP (Border Gateway Protocol).
+
+**What is it used for?**
+- **Dynamic routing**: Automatic route exchange via BGP
+- **Simplified NVA deployment**: Eliminates manual route table updates
+- **Multiple NVA support**: Can peer multiple NVA instances
+- **Hybrid connectivity**: Integrates with VPN Gateway and ExpressRoute Gateway
+- **High availability**: Standard SKU with zone redundancy
+- **Standard protocol**: Works with any BGP-capable NVA
+
+**Implementation:**
+- **Module**: `modules/route-server/`
+- **File**: `modules/route-server/main.tf`
+- **Resources**:
+  - `azurerm_route_server.main` - Route Server instance
+  - `azurerm_route_server_bgp_connection.peers` - BGP peer connections
+- **Key Features**:
+  - BGP route exchange with NVAs
+  - Automatic route propagation
+  - Branch-to-branch traffic support
+  - Multiple BGP peers
+- **Documentation**: `docs/a700-az104-azure-network/route_server/route_server.md` - Complete Route Server guide
 
 #### Azure VPN Gateway
 
@@ -717,10 +980,16 @@ DNS is crucial for VPN Gateway scenarios, especially for hybrid connectivity whe
 
 **Example Scenario**: Your on-premises application needs to connect to a database in Azure. Instead of hardcoding the Azure VM's IP address, you configure DNS forwarding so `azure-db.company.local` resolves correctly from on-premises. Similarly, Azure VMs can resolve `onprem-app.company.local`. This creates a unified DNS namespace across your hybrid infrastructure.
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/vpn-gateway/` (structure exists)
-- **Implementation**: Would use `azurerm_virtual_network_gateway` resource
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/virtual-network-gateway/` (includes VPN Gateway) or `modules/vpn-gateway/` (dedicated)
+- **File**: `modules/virtual-network-gateway/main.tf` or `modules/vpn-gateway/main.tf`
+- **Resource**: `azurerm_virtual_network_gateway`
+- **Key Features**:
+  - Site-to-site, point-to-site, and VNet-to-VNet connections
+  - Active-active and active-standby configurations
+  - BGP support
+  - ExpressRoute Gateway support
+- **Note**: `modules/virtual-network-gateway/` implements VPN Gateway as part of Virtual Network Gateway
 
 #### Azure ExpressRoute
 
@@ -734,10 +1003,14 @@ DNS is crucial for VPN Gateway scenarios, especially for hybrid connectivity whe
 - **High availability**: 99.95% uptime SLA
 - **Compliance**: Meets strict security and compliance requirements
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/expressroute/` (structure exists)
-- **Implementation**: Would use `azurerm_express_route_circuit` resource
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/expressroute/`
+- **File**: `modules/expressroute/main.tf`
+- **Resources**:
+  - `azurerm_express_route_circuit` - ExpressRoute circuit
+  - `azurerm_express_route_circuit_peering` - Peering configuration
+  - `azurerm_express_route_gateway` - ExpressRoute Gateway
+- **Status**: Fully implemented
 
 #### Azure Virtual WAN
 
@@ -751,10 +1024,14 @@ DNS is crucial for VPN Gateway scenarios, especially for hybrid connectivity whe
 - **Centralized security**: Integrates Azure Firewall for centralized security
 - **SD-WAN**: Integrates third-party SD-WAN devices
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/virtual-wan/` (structure exists)
-- **Implementation**: Would use `azurerm_virtual_wan` and `azurerm_virtual_hub` resources
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/virtual-wan/`
+- **File**: `modules/virtual-wan/main.tf`
+- **Resources**:
+  - `azurerm_virtual_wan` - Virtual WAN instance
+  - `azurerm_virtual_hub` - Virtual hubs
+  - Hub connections and routing
+- **Status**: Fully implemented
 
 #### Routing Preference
 
@@ -830,10 +1107,16 @@ DNS is the foundation of Azure Front Door. Front Door is a DNS-based service tha
 - **CNAME Flattening**: Front Door supports CNAME flattening for apex domains (root domains)
 - **SSL/TLS**: DNS validation is required for SSL certificates with custom domains
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/front-door/` (structure exists)
-- **Implementation**: Would use `azurerm_frontdoor` resource
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/front-door/`
+- **File**: `modules/front-door/main.tf`
+- **Resource**: `azurerm_frontdoor`
+- **Key Features**:
+  - Global load balancing
+  - Integrated WAF
+  - Edge caching
+  - SSL termination
+- **Status**: Fully implemented
 
 #### Azure CDN
 
@@ -847,10 +1130,13 @@ DNS is the foundation of Azure Front Door. Front Door is a DNS-based service tha
 - **HTTPS**: Full HTTPS support
 - **Custom domains**: Use your own custom domains
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/cdn/` (structure exists)
-- **Implementation**: Would use `azurerm_cdn_profile` and `azurerm_cdn_endpoint` resources
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/cdn/`
+- **File**: `modules/cdn/main.tf`
+- **Resources**:
+  - `azurerm_cdn_profile` - CDN profile
+  - `azurerm_cdn_endpoint` - CDN endpoints
+- **Status**: Fully implemented
 
 #### Azure Traffic Manager
 
@@ -892,10 +1178,15 @@ Traffic Manager is fundamentally a DNS-based load balancing service. It doesn't 
 - **Not a Proxy**: Traffic Manager doesn't proxy traffic - it only returns DNS responses
 - **Health Probe Frequency**: More frequent health probes enable faster failover detection
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/traffic-manager/` (structure exists)
-- **Implementation**: Would use `azurerm_traffic_manager_profile` resource
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/traffic-manager/`
+- **File**: `modules/traffic-manager/main.tf`
+- **Resource**: `azurerm_traffic_manager_profile`
+- **Key Features**:
+  - DNS-based load balancing
+  - Multiple routing methods
+  - Health monitoring
+- **Status**: Fully implemented
 
 ### Monitoring Services
 
@@ -913,10 +1204,13 @@ Traffic Manager is fundamentally a DNS-based load balancing service. It doesn't 
 - **NSG Flow Logs**: Logs information about network traffic flowing through NSGs
 - **Network Performance Monitor**: Monitors network performance
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/network-watcher/` (structure exists)
-- **Implementation**: Would use `azurerm_network_watcher` and related resources
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/network-watcher/`
+- **File**: `modules/network-watcher/main.tf`
+- **Resources**:
+  - `azurerm_network_watcher` - Network Watcher instance
+  - Connection monitors, packet captures, flow logs
+- **Status**: Fully implemented
 
 ### Advanced Services
 
@@ -956,10 +1250,16 @@ Azure DNS is the DNS service itself, providing DNS hosting and resolution capabi
 - **Delegation**: Public DNS zones require domain delegation at your domain registrar
 - **Performance**: Azure DNS provides high-performance DNS resolution with global distribution
 
-**Status**: Documented in `docs/AZURE_NETWORKING_COMPLETE_GUIDE.md`
-- **Directory**: `modules/dns/` (structure exists)
-- **Implementation**: Would use `azurerm_dns_zone` and `azurerm_dns_record` resources
-- **Note**: Implementation pending
+**Implementation:**
+- **Module**: `modules/dns/`
+- **File**: `modules/dns/main.tf`
+- **Resources**:
+  - `azurerm_dns_zone` - Public DNS zones
+  - `azurerm_private_dns_zone` - Private DNS zones
+  - `azurerm_dns_a_record`, `azurerm_dns_aaaa_record`, `azurerm_dns_cname_record`, etc. - DNS records
+  - `azurerm_private_dns_zone_virtual_network_link` - VNet links for private zones
+- **Documentation**: `docs/a700-az104-azure-network/dns/dns.md` - Complete DNS guide
+- **Status**: Fully implemented with comprehensive documentation
 
 #### Internet Analyzer
 

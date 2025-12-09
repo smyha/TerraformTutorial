@@ -113,4 +113,88 @@ resource "azurerm_subnet" "main" {
   private_link_service_network_policies_enabled = each.value.private_link_service_network_policies_enabled
 }
 
+# ----------------------------------------------------------------------------
+# Route Tables (User-Defined Routes)
+# ----------------------------------------------------------------------------
+# Route Tables allow you to override Azure's default routing behavior.
+# You can create custom routes to control how traffic flows in your VNet.
+#
+# Route tables can be associated with subnets to apply custom routing rules.
+# Each subnet can have only one route table associated with it.
+#
+# Route Priority:
+# - Routes are evaluated in order of specificity (most specific first)
+# - System routes (default Azure routes) have lower priority than user-defined routes
+# - If multiple routes match, the most specific route is used
+# ----------------------------------------------------------------------------
+resource "azurerm_route_table" "main" {
+  for_each = var.route_tables
+
+  name                          = each.key
+  location                      = var.location
+  resource_group_name           = var.resource_group_name
+  disable_bgp_route_propagation = each.value.disable_bgp_route_propagation
+
+  tags = merge(var.tags, each.value.tags)
+}
+
+# ----------------------------------------------------------------------------
+# Routes (User-Defined Routes)
+# ----------------------------------------------------------------------------
+# Routes define how traffic is routed to specific destinations.
+# Each route specifies:
+# - Address prefix: Destination network (CIDR notation)
+# - Next hop type: Where to send the traffic
+# - Next hop IP: IP address (for VirtualAppliance next hop type)
+#
+# Next Hop Types:
+# - VirtualAppliance: Route traffic through a Network Virtual Appliance (NVA)
+# - VirtualNetworkGateway: Route traffic through VPN/ExpressRoute Gateway
+# - VnetLocal: Route traffic within the VNet (default for VNet subnets)
+# - Internet: Route traffic to the Internet
+# - None: Drop traffic (blackhole route)
+# - VnetPeering: Route traffic to a peered VNet
+#
+# Route Evaluation:
+# - Routes are evaluated in order of specificity
+# - Most specific route (smallest prefix) is matched first
+# - If no user-defined route matches, system routes are used
+# ----------------------------------------------------------------------------
+resource "azurerm_route" "main" {
+  for_each = {
+    for route_key, route in var.routes : route_key => route
+    if route.route_table_name != null
+  }
+
+  name                   = each.value.name
+  resource_group_name    = var.resource_group_name
+  route_table_name       = azurerm_route_table.main[each.value.route_table_name].name
+  address_prefix         = each.value.address_prefix
+  next_hop_type          = each.value.next_hop_type
+  next_hop_in_ip_address = each.value.next_hop_in_ip_address
+
+  # Note: next_hop_in_ip_address is required only for VirtualAppliance next hop type
+}
+
+# ----------------------------------------------------------------------------
+# Subnet Route Table Associations
+# ----------------------------------------------------------------------------
+# Associates route tables with subnets to apply custom routing rules.
+# Each subnet can have only one route table associated with it.
+#
+# When a route table is associated with a subnet:
+# - All traffic from resources in that subnet uses the route table
+# - User-defined routes override system routes for matching prefixes
+# - Routes are evaluated in order of specificity
+# ----------------------------------------------------------------------------
+resource "azurerm_subnet_route_table_association" "main" {
+  for_each = {
+    for subnet_name, subnet_config in var.subnets : subnet_name => subnet_config
+    if subnet_config.route_table_name != null
+  }
+
+  subnet_id      = azurerm_subnet.main[each.key].id
+  route_table_id = azurerm_route_table.main[each.value.route_table_name].id
+}
+
 

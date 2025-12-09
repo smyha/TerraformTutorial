@@ -1,4 +1,4 @@
-# Azure Virtual Networks
+# Azure Virtual Networks (Vnets)
 
 ## Overview
 
@@ -7,6 +7,259 @@ A major incentive for adopting cloud solutions like Azure is to enable informati
 **Learn more:**
 - [Azure Virtual Network Overview](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview)
 - [Virtual Network Documentation](https://learn.microsoft.com/en-us/azure/virtual-network/)
+
+## Azure Virtual Networks Functionality
+
+Virtual networks enable Azure resources to communicate securely with each other, with the Internet, and with on-premises networks.
+
+**Virtual Network Communication Capabilities:**
+```mermaid
+graph TB
+    VNet[Azure Virtual Network] --> Internet[Internet Communication]
+    VNet --> Azure[Azure Resource Communication]
+    VNet --> OnPrem[On-Premises Communication]
+    VNet --> Filter[Network Traffic Filtering]
+    VNet --> Route[Network Traffic Routing]
+    
+    Internet --> Outbound[Outbound by Default]
+    Internet --> Inbound[Inbound via Public IP/LB]
+    
+    Azure --> Direct[Direct Communication]
+    Azure --> ServiceEndpoint[Service Endpoints]
+    Azure --> Peering[VNet Peering]
+    
+    OnPrem --> VPN[VPN Gateway]
+    OnPrem --> ExpressRoute[ExpressRoute]
+    OnPrem --> P2S[Point-to-Site VPN]
+    
+    Filter --> NSG[Network Security Groups]
+    Filter --> NVA[Network Virtual Appliances]
+    
+    Route --> RouteTable[Route Tables]
+    Route --> BGP[BGP Routes]
+```
+
+### Communication with Internet
+
+By default, all resources in a virtual network have outbound communication to the Internet. To communicate with an incoming resource, assign it a public IP address or a public load balancer. You can also use the public IP address or public load balancer to manage outbound connections.
+
+**Internet Communication Flow:**
+```mermaid
+graph LR
+    VNet[Virtual Network Resources] -->|Outbound by Default| Internet[Internet]
+    Internet -->|Inbound via| PublicIP[Public IP Address]
+    Internet -->|Inbound via| PublicLB[Public Load Balancer]
+    PublicIP --> VNet
+    PublicLB --> VNet
+```
+
+### Communication Between Azure Resources
+
+There are three key mechanisms through which Azure resources can communicate: virtual networks, virtual network service endpoints, and virtual network peering. Virtual networks can connect not only to virtual machines (VMs), but also to other Azure resources, such as App Service Environment, Azure Kubernetes Service, and Azure Virtual Machine Scale Sets. Service endpoints can be used to connect to other types of Azure resources, such as storage accounts and Azure SQL databases. When you create a virtual network, services and virtual machines in the virtual network can communicate directly and securely with each other in the cloud.
+
+**Azure Resource Communication:**
+```mermaid
+graph TB
+    VNet[Virtual Network] --> Direct[Direct Communication<br/>Within Same VNet]
+    VNet --> Peering[VNet Peering<br/>Between VNets]
+    VNet --> ServiceEndpoint[Service Endpoints<br/>To PaaS Services]
+    
+    Direct --> VM[Virtual Machines]
+    Direct --> AKS[Azure Kubernetes Service]
+    Direct --> ASE[App Service Environment]
+    Direct --> VMSS[VM Scale Sets]
+    
+    ServiceEndpoint --> Storage[Storage Accounts]
+    ServiceEndpoint --> SQL[Azure SQL Databases]
+    ServiceEndpoint --> OtherPaaS[Other PaaS Services]
+```
+
+### Communication with On-Premises Resources
+
+Extend your datacenter securely. You can connect computers and on-premises networks to a virtual network using any of the following options: Point-to-Site VPN, Site-to-Site VPN, or Azure ExpressRoute.
+
+**On-Premises Connectivity Options:**
+```mermaid
+graph TB
+    OnPrem[On-Premises Network] --> P2S[Point-to-Site VPN<br/>Individual Computers]
+    OnPrem --> S2S[Site-to-Site VPN<br/>VPN Gateway]
+    OnPrem --> ExpressRoute[ExpressRoute<br/>Private Connection]
+    
+    P2S --> VNet[Azure Virtual Network]
+    S2S --> VNet
+    ExpressRoute --> VNet
+```
+
+### Network Traffic Filtering
+
+You can filter network traffic between subnets using any combination of network security groups and network virtual appliances.
+
+**Traffic Filtering Mechanisms:**
+```mermaid
+graph TB
+    Subnet1[Subnet 1] --> NSG[Network Security Group<br/>Allow/Deny Rules]
+    Subnet2[Subnet 2] --> NSG
+    NSG --> Filtered[Filtered Traffic]
+    
+    Subnet1 --> NVA[Network Virtual Appliance<br/>Firewall/IDS/IPS]
+    Subnet2 --> NVA
+    NVA --> Inspected[Inspected Traffic]
+```
+
+### Network Traffic Routing
+
+By default, Azure routes traffic between subnets, connected virtual networks, on-premises networks, and the Internet. You can implement route tables or Border Gateway Protocol (BGP) routes to override the default routes that Azure creates.
+
+**Traffic Routing Options:**
+```mermaid
+graph TB
+    Traffic[Network Traffic] --> Default[Default Azure Routing<br/>Automatic]
+    Traffic --> Custom[Custom Route Tables<br/>User-Defined Routes]
+    Traffic --> BGP[BGP Routes<br/>Via VPN/ExpressRoute]
+    
+    Default --> AutoRoute[Automatic Routing]
+    Custom --> UDR[User-Defined Routes]
+    BGP --> OnPremRoute[On-Premises Routes]
+```
+
+## Azure Virtual Network Design Considerations
+
+### Address Space and Subnets
+
+You can create multiple virtual networks per region and subscription. You can create multiple subnets in each virtual network.
+
+**True or False Questions:**
+
+| Statement | True or False? | Why |
+|-----------|----------------|-----|
+| Outbound communication with Internet must be configured for each resource in the virtual network. | **False** | Within the same VNet, resources communicate with each other using private IPs without needing Internet or special outbound configuration. |
+| Azure virtual networks allow communication between Azure resources. | **True** | This is the main purpose of a VNet: all resources that are in the same virtual network (or in peered VNets) can communicate directly using private IP addresses. |
+| Azure virtual networks cannot be configured to communicate with on-premises resources. | **False** | Yes, they can be connected to on-premises via VPN Gateway (S2S VPN), ExpressRoute, or Virtual WAN. |
+
+### Virtual Networks
+
+When creating a virtual network, use address ranges listed in RFC 1918. These addresses are for private address spaces and are not routable.
+
+**RFC 1918 Private Address Ranges:**
+- `10.0.0.0 - 10.255.255.255` (prefix 10/8)
+- `172.16.0.0 - 172.31.255.255` (prefix 172.16/12)
+- `192.168.0.0 - 192.168.255.255` (prefix 192.168/16)
+
+**Reserved Address Ranges:**
+
+Additionally, these address ranges are reserved:
+
+- `224.0.0.0/4` (multicast)
+- `255.255.255.255/32` (broadcast)
+- `127.0.0.0/8` (loopback)
+- `169.254.0.0/16` (link-local)
+- `168.63.129.16/32` (internal DNS)
+
+**Address Space Planning:**
+```mermaid
+graph TB
+    Planning[Address Space Planning] --> RFC1918[Use RFC 1918 Ranges]
+    Planning --> NoOverlap[Ensure No Overlap]
+    Planning --> Reserved[Avoid Reserved Ranges]
+    
+    RFC1918 --> Private10[10.0.0.0/8]
+    RFC1918 --> Private172[172.16.0.0/12]
+    RFC1918 --> Private192[192.168.0.0/16]
+    
+    NoOverlap --> OnPrem[On-Premises Networks]
+    NoOverlap --> OtherVNet[Other Virtual Networks]
+    
+    Reserved --> Multicast[224.0.0.0/4]
+    Reserved --> Broadcast[255.255.255.255/32]
+    Reserved --> Loopback[127.0.0.0/8]
+    Reserved --> LinkLocal[169.254.0.0/16]
+    Reserved --> InternalDNS[168.63.129.16/32]
+```
+
+### Subnets
+
+A subnet is a range of IP addresses in the virtual network. You segment VNets into subnets of different sizes. Then you deploy Azure resources to a specific subnet. As in a traditional network, subnets allow you to segment the virtual network address space into segments that are suitable for the organization's internal network. The smallest supported IPv4 subnet is /29 and the largest is /2 (with CIDR subnet definitions). IPv6 subnets must be exactly /64 in size. When planning subnet implementation, consider the following:
+
+**Subnet Planning Considerations:**
+```mermaid
+graph TB
+    Subnet[Subnet Planning] --> UniqueRange[Unique Address Range<br/>CIDR Format]
+    Subnet --> ServiceReqs[Service Requirements<br/>Dedicated Subnets]
+    Subnet --> TrafficMgmt[Traffic Management<br/>Via NVA]
+    Subnet --> ServiceEndpoint[Service Endpoints<br/>Selective Access]
+    
+    UniqueRange --> CIDR[CIDR Notation<br/>No Overlap]
+    
+    ServiceReqs --> Gateway[Gateway Subnet]
+    ServiceReqs --> AppGW[Application Gateway]
+    ServiceReqs --> Bastion[Azure Bastion]
+    
+    TrafficMgmt --> Routing[Custom Routing]
+    TrafficMgmt --> Security[Security Policies]
+    
+    ServiceEndpoint --> Storage[Storage Accounts]
+    ServiceEndpoint --> SQL[SQL Databases]
+```
+
+**Key Subnet Requirements:**
+
+1. **Unique Address Range**: Each subnet must have a unique address range, specified in Classless Inter-Domain Routing (CIDR) format.
+
+2. **Service-Specific Subnets**: Some Azure services require their own subnet.
+
+3. **Traffic Management**: Subnets can be used for traffic management. For example, you can create subnets to route traffic through a network virtual appliance.
+
+4. **Service Endpoints**: You can limit access from specific subnets to Azure resources with a virtual network service endpoint. You can create multiple subnets and enable a service endpoint for some of them, but not for others.
+
+**Subnet Size Examples:**
+- **Smallest IPv4**: /29 (8 addresses, 3 usable after 5 reserved)
+- **Largest IPv4**: /2 (very large address space)
+- **IPv6**: Must be exactly /64
+
+### Considerations for Virtual Networks
+
+When planning virtual network implementation, you must consider:
+
+**Virtual Network Planning Checklist:**
+```mermaid
+graph TB
+    Planning[VNet Planning] --> AddressSpace[Address Space<br/>No Overlap?]
+    Planning --> Security[Security Isolation<br/>Required?]
+    Planning --> IPLimits[IP Addressing<br/>Limitations?]
+    Planning --> Connectivity[On-Premises<br/>Connections?]
+    Planning --> AdminIsolation[Administrative<br/>Isolation?]
+    Planning --> ServiceVNets[Azure Services<br/>Creating VNets?]
+    
+    AddressSpace --> OverlapCheck[Check Overlap with<br/>On-Premises & Cloud]
+    
+    Security --> NSG[Network Security Groups]
+    Security --> SubnetIsolation[Subnet Isolation]
+    
+    IPLimits --> AddressPlanning[Plan Address Space<br/>Carefully]
+    
+    Connectivity --> VPN[VPN Gateway]
+    Connectivity --> ExpressRoute[ExpressRoute]
+    
+    AdminIsolation --> RBAC[Role-Based Access]
+    AdminIsolation --> SubnetSegmentation[Subnet Segmentation]
+    
+    ServiceVNets --> ServiceReqs[Service Requirements]
+    ServiceVNets --> DedicatedSubnets[Dedicated Subnets]
+```
+
+**Key Planning Questions:**
+
+1. **Address Space Overlap**: Ensure that address spaces do not overlap. Make sure the virtual network address space (CIDR block) does not overlap with other network ranges in the organization.
+
+2. **Security Isolation**: Is security isolation required?
+
+3. **IP Addressing Limitations**: Do you need to mitigate IP addressing limitations?
+
+4. **On-Premises Connectivity**: Are there connections between Azure virtual networks and on-premises networks?
+
+5. **Administrative Isolation**: Is administrative isolation needed?
+
+6. **Azure Service Requirements**: Do you use any Azure services that create their own virtual networks?
 
 ## Things to Know About Azure Virtual Networks
 
@@ -272,7 +525,7 @@ graph TB
 
 1. **IP Address Space**: When you create a virtual network, you need to define the IP address space for the network.
 
-2. **Address Space Planning**: 
+2. **Address Space Planning**:
    - Plan to use an IP address space that's not already in use in your organization.
    - The address space for the network can be either on-premises or in the cloud, but not both.
    - Once you create the IP address space, it can't be changed. If you plan your address space for cloud-only virtual networks, you might later decide to connect an on-premises site.
@@ -504,7 +757,7 @@ graph TB
 
 ### Virtual Network Planning
 
-1. **Address Space Planning**: 
+1. **Address Space Planning**:
    - Plan address space carefully before creation
    - Consider future growth and connectivity requirements
    - Ensure no overlap with on-premises networks
@@ -553,5 +806,3 @@ Azure Virtual Networks provide:
 - [Virtual Network Best Practices](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-vnet-plan-design-guide)
 - [Subnet Planning Guide](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-vnet-plan-design-guide#plan-for-subnets)
 - [IP Address Management](https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/public-ip-addresses)
-
-

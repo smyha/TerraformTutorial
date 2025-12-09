@@ -28,13 +28,29 @@ variable "nat_gateway_name" {
 }
 
 variable "public_ip_address_ids" {
-  description = "List of public IP address IDs to associate with the NAT Gateway. At least one is required."
+  description = <<-EOT
+    List of public IP address IDs to associate with the NAT Gateway.
+    - At least one public IP address or public IP prefix is required
+    - Public IPs must be Standard SKU
+    - Each public IP supports up to 64,000 concurrent flows
+    - NAT Gateway can support up to 16 public IP addresses
+    - Multiple IPs provide more capacity and redundancy
+  EOT
   type        = list(string)
-  
-  validation {
-    condition     = length(var.public_ip_address_ids) > 0
-    error_message = "At least one public IP address ID must be provided."
-  }
+  default     = []
+}
+
+variable "public_ip_prefix_ids" {
+  description = <<-EOT
+    List of public IP prefix IDs to associate with the NAT Gateway.
+    - Public IP prefix provides a contiguous range of public IP addresses
+    - Useful for predictable outbound IP addresses
+    - Can be used instead of or in addition to public_ip_address_ids
+    - At least one public IP address or public IP prefix is required
+    - NAT Gateway can support up to 16 public IP prefixes
+  EOT
+  type        = list(string)
+  default     = []
 }
 
 variable "idle_timeout_in_minutes" {

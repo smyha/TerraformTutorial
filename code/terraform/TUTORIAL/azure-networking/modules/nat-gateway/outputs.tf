@@ -17,3 +17,13 @@ output "nat_gateway_public_ip_address_ids" {
   value       = azurerm_nat_gateway.main.public_ip_address_ids
 }
 
+output "nat_gateway_public_ip_prefix_ids" {
+  description = "List of public IP prefix IDs associated with the NAT Gateway"
+  value       = azurerm_nat_gateway.main.public_ip_prefix_ids
+}
+
+output "nat_gateway_resource_guid" {
+  description = "The resource GUID property of the NAT Gateway"
+  value       = azurerm_nat_gateway.main.resource_guid
+}
+

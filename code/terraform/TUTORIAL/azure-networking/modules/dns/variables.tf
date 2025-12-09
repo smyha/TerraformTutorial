@@ -5,15 +5,51 @@
 # and global distribution.
 # ============================================================================
 
+variable "create_resource_group" {
+  description = <<-EOT
+    Whether to create a new resource group using the resource-group module.
+    If true, the module will create a resource group using the project_name,
+    application_name, and environment variables.
+    If false, you must provide an existing resource_group_name.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "resource_group_name" {
-  description = "Name of the resource group"
+  description = <<-EOT
+    Name of the existing resource group (required if create_resource_group = false).
+    This is ignored if create_resource_group = true.
+  EOT
   type        = string
+  default     = null
+}
+
+variable "project_name" {
+  description = "The name of the project (required if create_resource_group = true)"
+  type        = string
+  default     = ""
+}
+
+variable "application_name" {
+  description = "The name of the application (optional, used for resource group naming)"
+  type        = string
+  default     = ""
+}
+
+variable "environment" {
+  description = "The environment for the resource group (required if create_resource_group = true)"
+  type        = string
+  default     = "dev"
 }
 
 variable "location" {
-  description = "Azure region (typically 'global' for DNS zones)"
+  description = <<-EOT
+    Azure region for the resource group (if create_resource_group = true).
+    Note: DNS zones are global resources, but the resource group needs a location.
+  EOT
   type        = string
-  default     = "global"
+  default     = "Spain Central"
 }
 
 variable "dns_zones" {

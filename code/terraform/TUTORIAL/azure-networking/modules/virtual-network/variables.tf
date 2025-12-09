@@ -48,18 +48,21 @@ variable "subnets" {
     - delegation: Service delegation configuration (for AKS, App Service, etc.)
     - private_endpoint_network_policies_enabled: Enable/disable private endpoint network policies
     - private_link_service_network_policies_enabled: Enable/disable private link service network policies
+    - route_table_name: Name of route table to associate with this subnet (must exist in route_tables)
     
     Example:
     subnets = {
       "subnet-web" = {
         address_prefixes = ["10.0.1.0/24"]
         service_endpoints = ["Microsoft.Storage"]
+        route_table_name = "rt-nva"  # Associate route table
         private_endpoint_network_policies_enabled = true
         private_link_service_network_policies_enabled = true
       }
       "subnet-app" = {
         address_prefixes = ["10.0.2.0/24"]
         service_endpoints = ["Microsoft.Sql"]
+        route_table_name = null  # No route table (uses system routes)
       }
       "GatewaySubnet" = {
         address_prefixes = ["10.0.0.0/27"]  # Minimum /27 for VPN/ExpressRoute Gateway
@@ -84,6 +87,7 @@ variable "subnets" {
     }), null)
     private_endpoint_network_policies_enabled     = optional(bool, true)
     private_link_service_network_policies_enabled = optional(bool, true)
+    route_table_name                              = optional(string, null)
   }))
   
   default = {}
@@ -133,6 +137,121 @@ variable "tags" {
   description = "Map of tags to apply to all resources created by this module"
   type        = map(string)
   default     = {}
+}
+
+variable "route_tables" {
+  description = <<-EOT
+    Map of route tables to create. Route tables allow you to override Azure's default routing behavior.
+    
+    Each route table can have:
+    - disable_bgp_route_propagation: Disable propagation of BGP routes from on-premises (default: false)
+    - tags: Additional tags for the route table
+    
+    Example:
+    route_tables = {
+      "rt-nva" = {
+        disable_bgp_route_propagation = false
+        tags = {
+          Purpose = "NVA Routing"
+        }
+      }
+      "rt-internet" = {
+        disable_bgp_route_propagation = false
+        tags = {}
+      }
+    }
+  EOT
+  type = map(object({
+    disable_bgp_route_propagation = optional(bool, false)
+    tags                          = optional(map(string), {})
+  }))
+  default = {}
+}
+
+variable "routes" {
+  description = <<-EOT
+    Map of user-defined routes to create. Routes define how traffic is routed to specific destinations.
+    
+    Each route requires:
+    - name: Name of the route
+    - route_table_name: Name of the route table (must exist in route_tables)
+    - address_prefix: Destination network in CIDR notation (e.g., "10.1.0.0/16", "0.0.0.0/0")
+    - next_hop_type: Type of next hop (see Next Hop Types below)
+    - next_hop_in_ip_address: IP address for VirtualAppliance next hop type (optional)
+    
+    Next Hop Types:
+    - VirtualAppliance: Route through Network Virtual Appliance (NVA)
+      - Requires next_hop_in_ip_address (NVA's IP address)
+      - Used for forced tunneling, traffic inspection, etc.
+    - VirtualNetworkGateway: Route through VPN/ExpressRoute Gateway
+      - Used for on-premises connectivity
+      - Routes traffic to on-premises networks
+    - VnetLocal: Route within the VNet (default for VNet subnets)
+      - Used to route traffic within the VNet
+    - Internet: Route to the Internet
+      - Used for direct internet access
+    - None: Drop traffic (blackhole route)
+      - Used to block traffic to specific destinations
+    - VnetPeering: Route to a peered VNet
+      - Used for cross-VNet routing
+    
+    Route Evaluation:
+    - Routes are evaluated in order of specificity (most specific first)
+    - User-defined routes override system routes for matching prefixes
+    - If multiple routes match, the most specific route is used
+    
+    Example:
+    routes = {
+      "route-nva-default" = {
+        name                   = "route-nva-default"
+        route_table_name       = "rt-nva"
+        address_prefix         = "0.0.0.0/0"
+        next_hop_type          = "VirtualAppliance"
+        next_hop_in_ip_address = "10.0.1.10"  # NVA IP
+      }
+      "route-onprem" = {
+        name             = "route-onprem"
+        route_table_name = "rt-nva"
+        address_prefix   = "10.1.0.0/16"
+        next_hop_type    = "VirtualNetworkGateway"
+      }
+      "route-block" = {
+        name             = "route-block"
+        route_table_name = "rt-nva"
+        address_prefix   = "192.168.0.0/16"
+        next_hop_type    = "None"  # Blackhole route
+      }
+    }
+  EOT
+  type = map(object({
+    name                   = string
+    route_table_name       = string
+    address_prefix         = string
+    next_hop_type          = string
+    next_hop_in_ip_address = optional(string, null)
+  }))
+  default = {}
+  
+  validation {
+    condition = alltrue([
+      for route in var.routes : contains([
+        "VirtualAppliance",
+        "VirtualNetworkGateway",
+        "VnetLocal",
+        "Internet",
+        "None",
+        "VnetPeering"
+      ], route.next_hop_type)
+    ])
+    error_message = "next_hop_type must be one of: VirtualAppliance, VirtualNetworkGateway, VnetLocal, Internet, None, VnetPeering"
+  }
+  
+  validation {
+    condition = alltrue([
+      for route in var.routes : route.next_hop_type != "VirtualAppliance" || route.next_hop_in_ip_address != null
+    ])
+    error_message = "next_hop_in_ip_address is required when next_hop_type is VirtualAppliance"
+  }
 }
 
 
