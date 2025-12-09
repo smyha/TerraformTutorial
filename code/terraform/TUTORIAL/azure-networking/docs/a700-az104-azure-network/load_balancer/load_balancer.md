@@ -12,6 +12,443 @@ Here, you learn how Load Balancer's features can help you create robust app arch
 - [Azure Load Balancer Overview](https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-overview)
 - [Load Balancer Documentation](https://learn.microsoft.com/en-us/azure/load-balancer/)
 
+## Load Balancing Services Categorization
+
+Load balancing services can be classified in two ways: **Global vs Regional** and **HTTP(S) vs Non-HTTP(S)**.
+
+### Global vs Regional
+
+**Global load balancing services** distribute traffic across regional backend servers, clouds, or hybrid on-premises services. These services route end-user traffic to the nearest available backend server. They also react to changes in service reliability or performance. You can think of them as systems that load balance between stamps, endpoints, or application scale units hosted in different regions or geographic zones.
+
+**Global Load Balancing Architecture:**
+```mermaid
+graph TB
+    subgraph "Global Load Balancing"
+        Users[End Users<br/>Worldwide] --> GlobalLB[Global Load Balancer<br/>Azure Front Door / Traffic Manager]
+        
+        GlobalLB --> Region1[Region 1<br/>East US]
+        GlobalLB --> Region2[Region 2<br/>West Europe]
+        GlobalLB --> Region3[Region 3<br/>Southeast Asia]
+        
+        Region1 --> Backend1[Backend Servers<br/>Region 1]
+        Region2 --> Backend2[Backend Servers<br/>Region 2]
+        Region3 --> Backend3[Backend Servers<br/>Region 3]
+        
+        GlobalLB --> Health[Health Monitoring<br/>Performance Monitoring]
+        Health --> Region1
+        Health --> Region2
+        Health --> Region3
+    end
+    
+    style GlobalLB fill:#90EE90
+    style Region1 fill:#87CEEB
+    style Region2 fill:#87CEEB
+    style Region3 fill:#87CEEB
+```
+
+**Key Characteristics:**
+- **Multi-Region Distribution**: Routes traffic across multiple Azure regions
+- **Geographic Routing**: Routes users to nearest healthy region
+- **Global Reach**: Supports worldwide distribution
+- **Health-Based Routing**: Automatically routes to healthy endpoints
+- **Performance Optimization**: Routes based on latency and performance
+
+**Regional load balancing services**, in contrast, distribute traffic within virtual networks between virtual machines (VMs) or zonal and zone-redundant service endpoints within a region. You can think of them as systems that load balance between VMs, containers, or clusters within a region in a virtual network.
+
+**Regional Load Balancing Architecture:**
+```mermaid
+graph TB
+    subgraph "Regional Load Balancing"
+        Clients[Clients<br/>Same Region] --> RegionalLB[Regional Load Balancer<br/>Application Gateway / Load Balancer]
+        
+        RegionalLB --> VNet[Virtual Network<br/>Single Region]
+        
+        VNet --> Subnet1[Subnet 1]
+        VNet --> Subnet2[Subnet 2]
+        VNet --> Subnet3[Subnet 3]
+        
+        Subnet1 --> VM1[VM 1<br/>Zone 1]
+        Subnet2 --> VM2[VM 2<br/>Zone 2]
+        Subnet3 --> VM3[VM 3<br/>Zone 3]
+        
+        RegionalLB --> Health[Health Probes<br/>Within Region]
+        Health --> VM1
+        Health --> VM2
+        Health --> VM3
+    end
+    
+    style RegionalLB fill:#FFE4B5
+    style VNet fill:#87CEEB
+```
+
+**Key Characteristics:**
+- **Single Region**: Operates within one Azure region
+- **VNet Scope**: Distributes traffic within virtual networks
+- **Zone Support**: Can distribute across availability zones within a region
+- **Local Optimization**: Optimizes for regional performance
+- **Lower Latency**: No cross-region routing overhead
+
+**Global vs Regional Comparison:**
+```mermaid
+graph TB
+    LB[Load Balancing Services] --> Global[Global Services]
+    LB --> Regional[Regional Services]
+    
+    Global --> FrontDoor[Azure Front Door<br/>Global HTTP/HTTPS]
+    Global --> TrafficManager[Traffic Manager<br/>Global Non-HTTP/S]
+    
+    Regional --> AppGateway[Application Gateway<br/>Regional HTTP/HTTPS]
+    Regional --> AzureLB[Azure Load Balancer<br/>Regional Non-HTTP/S]
+    
+    Global --> Scope1[Multi-Region<br/>Worldwide]
+    Regional --> Scope2[Single Region<br/>VNet Scope]
+    
+    style Global fill:#90EE90
+    style Regional fill:#FFE4B5
+```
+
+### HTTP(S) vs Non-HTTP(S)
+
+**HTTP(S) load balancing services** are Layer 7 load balancers that only accept HTTP(S) traffic. They are designed for web applications or other HTTP(S) endpoints. They include features such as SSL offloading, web application firewall, path-based load balancing, and session affinity.
+
+**HTTP(S) Load Balancing Features:**
+```mermaid
+graph TB
+    HTTPS[HTTP/S Load Balancing<br/>Layer 7] --> Features[Key Features]
+    
+    Features --> SSLOffload[SSL/TLS Offloading<br/>Terminate SSL at Load Balancer]
+    Features --> WAF[Web Application Firewall<br/>Protection Against Attacks]
+    Features --> PathBased[Path-Based Routing<br/>/api, /web, /admin]
+    Features --> HostBased[Host-Based Routing<br/>api.example.com]
+    Features --> SessionAffinity[Session Affinity<br/>Cookie-Based Sticky Sessions]
+    Features --> URLRewrite[URL Rewriting<br/>Modify Request/Response]
+    
+    HTTPS --> Services[Azure Services]
+    Services --> AppGateway[Application Gateway<br/>Regional]
+    Services --> FrontDoor[Azure Front Door<br/>Global]
+    
+    style HTTPS fill:#90EE90
+    style AppGateway fill:#87CEEB
+    style FrontDoor fill:#87CEEB
+```
+
+**Key Characteristics:**
+- **Layer 7**: Operates at application layer (HTTP/HTTPS)
+- **Content-Aware**: Can inspect and route based on HTTP content
+- **SSL Termination**: Can terminate SSL/TLS connections
+- **Application Features**: WAF, URL rewriting, session affinity
+- **Use Case**: Web applications, APIs, HTTP-based services
+
+**Non-HTTP(S) load balancing services**, in contrast, can handle traffic that isn't HTTP(S) and are recommended for non-web workloads.
+
+**Non-HTTP(S) Load Balancing Features:**
+```mermaid
+graph TB
+    NonHTTPS[Non-HTTP/S Load Balancing<br/>Layer 4] --> Features[Key Features]
+    
+    Features --> TCP[TCP Load Balancing<br/>Any TCP Protocol]
+    Features --> UDP[UDP Load Balancing<br/>Any UDP Protocol]
+    Features --> PortBased[Port-Based Routing<br/>Port 22, 3389, 1433, etc.]
+    Features --> HighPerf[High Performance<br/>Low Latency]
+    Features --> Simple[Simple Configuration<br/>No Application Logic]
+    
+    NonHTTPS --> Services[Azure Services]
+    Services --> AzureLB[Azure Load Balancer<br/>Regional]
+    Services --> TrafficManager[Traffic Manager<br/>Global DNS-Based]
+    
+    style NonHTTPS fill:#FFE4B5
+    style AzureLB fill:#87CEEB
+    style TrafficManager fill:#87CEEB
+```
+
+**Key Characteristics:**
+- **Layer 4**: Operates at transport layer (TCP/UDP)
+- **Protocol Agnostic**: Works with any TCP/UDP protocol
+- **High Performance**: Lower latency, higher throughput
+- **Simple**: No application-layer processing
+- **Use Case**: Database connections, RDP, SSH, custom protocols
+
+**Important Note:**
+
+> In this module, we focus on **non-HTTP(S) solutions**.
+
+### Load Balancing Services Categorization Table
+
+This table summarizes these categorizations for each Azure load balancing service:
+
+| Service | Global or Regional | Recommended Traffic |
+|---------|-------------------|---------------------|
+| **Azure Front Door** | Global | HTTP(S) |
+| **Traffic Manager** | Global | Non-HTTP(S) |
+| **Application Gateway** | Regional | HTTP(S) |
+| **Azure Load Balancer** | Regional | Non-HTTP(S) |
+
+**Service Categorization Diagram:**
+```mermaid
+graph TB
+    Services[Azure Load Balancing Services] --> Global[Global Services]
+    Services --> Regional[Regional Services]
+    
+    Global --> GlobalHTTP[HTTP/S Services]
+    Global --> GlobalNonHTTP[Non-HTTP/S Services]
+    
+    Regional --> RegionalHTTP[HTTP/S Services]
+    Regional --> RegionalNonHTTP[Non-HTTP/S Services]
+    
+    GlobalHTTP --> FrontDoor[Azure Front Door<br/>Global HTTP/S]
+    GlobalNonHTTP --> TrafficManager[Traffic Manager<br/>Global Non-HTTP/S]
+    
+    RegionalHTTP --> AppGateway[Application Gateway<br/>Regional HTTP/S]
+    RegionalNonHTTP --> AzureLB[Azure Load Balancer<br/>Regional Non-HTTP/S]
+    
+    style FrontDoor fill:#90EE90
+    style TrafficManager fill:#90EE90
+    style AppGateway fill:#FFE4B5
+    style AzureLB fill:#FFE4B5
+```
+
+### Choosing a Load Balancing Option for Azure
+
+These are the key factors for deciding on a load balancing option:
+
+#### 1. Traffic Type
+
+**Question**: Is it for a web application? Is it a public or private application?
+
+**Considerations:**
+- **Web Application (HTTP/HTTPS)**: Use Application Gateway (regional) or Azure Front Door (global)
+- **Non-Web Application**: Use Azure Load Balancer (regional) or Traffic Manager (global)
+- **Public Application**: Requires public IP and internet accessibility
+- **Private Application**: Uses private IP within VNet
+
+**Traffic Type Decision Tree:**
+```mermaid
+graph TB
+    Start[Application Type?] --> Web{Web Application<br/>HTTP/HTTPS?}
+    
+    Web -->|Yes| Public{Public or<br/>Private?}
+    Web -->|No| NonWeb{Public or<br/>Private?}
+    
+    Public -->|Public| GlobalWeb{Global or<br/>Regional?}
+    Public -->|Private| AppGateway[Application Gateway<br/>Regional HTTP/S]
+    
+    NonWeb -->|Public| GlobalNonWeb{Global or<br/>Regional?}
+    NonWeb -->|Private| AzureLB[Azure Load Balancer<br/>Regional Non-HTTP/S]
+    
+    GlobalWeb -->|Global| FrontDoor[Azure Front Door<br/>Global HTTP/S]
+    GlobalWeb -->|Regional| AppGateway
+    
+    GlobalNonWeb -->|Global| TrafficManager[Traffic Manager<br/>Global Non-HTTP/S]
+    GlobalNonWeb -->|Regional| AzureLB
+    
+    style FrontDoor fill:#90EE90
+    style AppGateway fill:#FFE4B5
+    style TrafficManager fill:#90EE90
+    style AzureLB fill:#FFE4B5
+```
+
+#### 2. Scope
+
+**Question**: Do you need to load balance VMs and containers within a virtual network, or load balance across regions, or both?
+
+**Considerations:**
+- **Within VNet**: Use regional services (Application Gateway or Azure Load Balancer)
+- **Across Regions**: Use global services (Azure Front Door or Traffic Manager)
+- **Both**: Combine global and regional services
+
+**Scope Decision:**
+```mermaid
+graph TB
+    Scope{Load Balancing Scope?} --> VNet[Within Virtual Network<br/>Single Region]
+    Scope --> Regions[Across Multiple Regions<br/>Global]
+    Scope --> Both[Both VNet and Regions]
+    
+    VNet --> Regional[Regional Services]
+    Regional --> HTTP1{HTTP/S?}
+    HTTP1 -->|Yes| AppGateway[Application Gateway]
+    HTTP1 -->|No| AzureLB[Azure Load Balancer]
+    
+    Regions --> Global[Global Services]
+    Global --> HTTP2{HTTP/S?}
+    HTTP2 -->|Yes| FrontDoor[Azure Front Door]
+    HTTP2 -->|No| TrafficManager[Traffic Manager]
+    
+    Both --> Combined[Combined Architecture]
+    Combined --> GlobalLB[Global Load Balancer<br/>Front Door or Traffic Manager]
+    Combined --> RegionalLB[Regional Load Balancer<br/>App Gateway or Azure LB]
+    GlobalLB --> RegionalLB
+    
+    style GlobalLB fill:#90EE90
+    style RegionalLB fill:#FFE4B5
+```
+
+#### 3. Availability
+
+**Question**: What is the Service Level Agreement (SLA) of the service?
+
+**SLA Comparison:**
+
+| Service | SLA | Availability Features |
+|---------|-----|----------------------|
+| **Azure Front Door** | 99.99% | Global distribution, automatic failover |
+| **Traffic Manager** | 99.99% | DNS-based failover, health monitoring |
+| **Application Gateway** | 99.95% | Zone redundancy, health probes |
+| **Azure Load Balancer** | 99.99% (Standard) | Zone redundancy, availability zones |
+
+**SLA Architecture:**
+```mermaid
+graph TB
+    SLA[Service Level Agreement] --> High[99.99% SLA]
+    SLA --> Standard[99.95% SLA]
+    
+    High --> FrontDoor[Azure Front Door<br/>99.99%]
+    High --> TrafficManager[Traffic Manager<br/>99.99%]
+    High --> AzureLB[Azure Load Balancer<br/>99.99% Standard SKU]
+    
+    Standard --> AppGateway[Application Gateway<br/>99.95%]
+    Standard --> BasicLB[Azure Load Balancer<br/>99.95% Basic SKU]
+    
+    High --> Features1[Zone Redundancy<br/>Automatic Failover<br/>Health Monitoring]
+    Standard --> Features2[Availability Sets<br/>Health Probes]
+    
+    style High fill:#90EE90
+    style Standard fill:#FFE4B5
+```
+
+#### 4. Cost
+
+**Question**: In addition to the actual service cost, consider the operational cost to manage and maintain a solution integrated into that service.
+
+**Cost Considerations:**
+- **Service Cost**: Base pricing for the load balancing service
+- **Data Transfer Costs**: Cross-region data transfer costs (for global services)
+- **Operational Costs**: Management and maintenance overhead
+- **Resource Costs**: Backend resources (VMs, containers)
+
+**Cost Comparison:**
+```mermaid
+graph TB
+    Cost[Cost Factors] --> ServiceCost[Service Cost]
+    Cost --> DataTransfer[Data Transfer Cost]
+    Cost --> Operational[Operational Cost]
+    Cost --> Resources[Resource Cost]
+    
+    ServiceCost --> GlobalCost[Global Services<br/>Higher Base Cost]
+    ServiceCost --> RegionalCost[Regional Services<br/>Lower Base Cost]
+    
+    DataTransfer --> CrossRegion[Cross-Region Transfer<br/>Additional Cost]
+    DataTransfer --> SameRegion[Same Region Transfer<br/>Lower Cost]
+    
+    Operational --> Management[Management Overhead<br/>Monitoring, Maintenance]
+    
+    Resources --> Backend[Backend Resources<br/>VMs, Containers]
+    
+    style GlobalCost fill:#FFB6C1
+    style RegionalCost fill:#90EE90
+```
+
+**Learn more:**
+- [Load Balancing Pricing](https://azure.microsoft.com/pricing/details/load-balancer/)
+- [Application Gateway Pricing](https://azure.microsoft.com/pricing/details/application-gateway/)
+- [Front Door Pricing](https://azure.microsoft.com/pricing/details/frontdoor/)
+- [Traffic Manager Pricing](https://azure.microsoft.com/pricing/details/traffic-manager/)
+
+#### 5. Features and Limitations
+
+**Question**: What features and advantages does each service provide and what are their limitations?
+
+**Feature Comparison:**
+
+| Feature | Azure Front Door | Traffic Manager | Application Gateway | Azure Load Balancer |
+|---------|-----------------|-----------------|---------------------|---------------------|
+| **Layer** | Layer 7 (HTTP/HTTPS) | Layer 4 (DNS) | Layer 7 (HTTP/HTTPS) | Layer 4 (TCP/UDP) |
+| **Scope** | Global | Global | Regional | Regional |
+| **SSL Offloading** | ✅ Yes | ❌ No | ✅ Yes | ❌ No |
+| **WAF** | ✅ Yes | ❌ No | ✅ Yes | ❌ No |
+| **Path-Based Routing** | ✅ Yes | ❌ No | ✅ Yes | ❌ No |
+| **Session Affinity** | ✅ Yes | ❌ No | ✅ Yes | ✅ Yes (Source IP) |
+| **Health Probes** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Zone Redundancy** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes (Standard) |
+
+**Learn more:**
+- [Load Balancer Limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#load-balancer)
+- [Application Gateway Limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#application-gateway)
+- [Front Door Limits](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-front-door-service)
+
+### Load Balancing Decision Tree
+
+The following decision tree helps you choose the right Azure load balancing service based on your requirements:
+
+![Load Balancing Decision Tree](../img/load-balancing-decision-tree-3f132096.png)
+
+**Decision Tree Overview:**
+
+The decision tree guides you through selecting the appropriate Azure networking service based on:
+
+1. **Application Type**: Web application (HTTP/HTTPS) or non-web application
+2. **Accessibility**: Internet-accessible or private application
+3. **Geographic Scope**: Global/multiple regions or single region
+4. **Performance Requirements**: Performance acceleration needs
+5. **Application Layer Processing**: SSL offloading or per-request processing
+6. **Hosting Model**: PaaS (App Service, Functions), IaaS (VMs), or AKS
+
+**Key Decision Points:**
+
+- **Web Application (HTTP/HTTPS)**:
+  - If **Internet-accessible** and **Global**: Azure Front Door
+  - If **Internet-accessible** and **Regional**: Application Gateway
+  - If **Private**: Application Gateway
+  - If **Global** with **SSL offloading**: Azure Front Door + Application Gateway
+  - If **Global** with **PaaS hosting**: Azure Front Door
+  - If **Global** with **AKS**: Azure Front Door + Application Gateway Ingress Controller
+  - If **Global** with **IaaS (VMs)**: Azure Front Door + Azure Load Balancer
+
+- **Non-Web Application**:
+  - If **Internet-accessible** and **Global**: Traffic Manager + Azure Load Balancer
+  - If **Internet-accessible** and **Regional**: Azure Load Balancer
+  - If **Private**: Azure Load Balancer
+
+**Decision Tree Mermaid Representation:**
+```mermaid
+graph TB
+    Start[Start] --> AppType{Web Application?<br/>HTTP/HTTPS}
+    
+    AppType -->|No| NonWeb{Internet<br/>Accessible?}
+    AppType -->|Yes| Web{Internet<br/>Accessible?}
+    
+    NonWeb -->|No| AzureLB1[Azure Load Balancer<br/>Internal]
+    NonWeb -->|Yes| Global1{Global/<br/>Multiple Regions?}
+    
+    Global1 -->|No| AzureLB2[Azure Load Balancer<br/>External]
+    Global1 -->|Yes| TrafficManager[Traffic Manager +<br/>Azure Load Balancer]
+    
+    Web -->|No| AppGateway1[Application Gateway<br/>Internal]
+    Web -->|Yes| Global2{Global/<br/>Multiple Regions?}
+    
+    Global2 -->|No| Perf{Performance<br/>Acceleration?}
+    Global2 -->|Yes| SSL{SSL Offloading or<br/>App Layer Processing?}
+    
+    Perf -->|No| AppGateway2[Application Gateway]
+    Perf -->|Yes| SSL
+    
+    SSL -->|Yes| FrontDoorAG[Azure Front Door +<br/>Application Gateway]
+    SSL -->|No| Hosting{Hosting Model?}
+    
+    Hosting --> PaaS[PaaS<br/>App Service/Functions] --> FrontDoor1[Azure Front Door]
+    Hosting --> AKS[AKS] --> FrontDoorAG2[Azure Front Door +<br/>Application Gateway Ingress]
+    Hosting --> IaaS[IaaS<br/>VMs] --> FrontDoorLB[Azure Front Door +<br/>Azure Load Balancer]
+    
+    style FrontDoor1 fill:#90EE90
+    style FrontDoorAG fill:#90EE90
+    style FrontDoorAG2 fill:#90EE90
+    style FrontDoorLB fill:#90EE90
+    style AppGateway1 fill:#FFE4B5
+    style AppGateway2 fill:#FFE4B5
+    style TrafficManager fill:#90EE90
+    style AzureLB1 fill:#FFE4B5
+    style AzureLB2 fill:#FFE4B5
+```
+
 ## Distribute traffic with Azure Load Balancer
 
 Azure Load Balancer is a service you can use to distribute traffic across multiple virtual machines. Use Load Balancer to scale applications and create high availability for your virtual machines and services. Load balancers use a hash-based distribution algorithm. By default, a five-tuple hash is used to map traffic to available servers. The hash is made from the following elements:
