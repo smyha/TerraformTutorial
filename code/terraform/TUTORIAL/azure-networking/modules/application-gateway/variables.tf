@@ -204,6 +204,8 @@ variable "backend_http_settings" {
         host_name                           = null
         pick_host_name_from_backend_address = true
         affinity_cookie_name                = null
+        authentication_certificate          = null
+        connection_draining                = null
       }
     ]
   EOT
@@ -218,6 +220,13 @@ variable "backend_http_settings" {
     host_name                           = optional(string, null)
     pick_host_name_from_backend_address = optional(bool, false)
     affinity_cookie_name                = optional(string, null)
+    authentication_certificate          = optional(object({
+      name = string
+    }), null)
+    connection_draining                 = optional(object({
+      enabled           = bool
+      drain_timeout_sec = number
+    }), null)
   }))
   
   default = []
@@ -236,8 +245,10 @@ variable "http_listeners" {
         frontend_port_name             = "http-port"
         protocol                       = "Http"
         host_name                      = null
+        host_names                     = null
         require_sni                    = false
         ssl_certificate_name           = null
+        firewall_policy_id             = null
       },
       {
         name                           = "https-listener"
@@ -245,8 +256,10 @@ variable "http_listeners" {
         frontend_port_name             = "https-port"
         protocol                       = "Https"
         host_name                      = "www.example.com"
+        host_names                     = ["www.example.com", "api.example.com"]
         require_sni                    = true
         ssl_certificate_name           = "ssl-cert"
+        firewall_policy_id             = null
       }
     ]
   EOT
@@ -256,8 +269,10 @@ variable "http_listeners" {
     frontend_port_name             = string
     protocol                       = string # "Http" or "Https"
     host_name                      = optional(string, null)
+    host_names                     = optional(list(string), null)
     require_sni                    = optional(bool, false)
     ssl_certificate_name           = optional(string, null)
+    firewall_policy_id             = optional(string, null)
   }))
   
   default = []
@@ -283,6 +298,8 @@ variable "request_routing_rules" {
         backend_http_settings_name  = "http-setting"
         url_path_map_name           = null
         redirect_configuration_name = null
+        rewrite_rule_set_name       = null
+        priority                    = null
       },
       {
         name                        = "path-based-rule"
@@ -292,6 +309,8 @@ variable "request_routing_rules" {
         backend_http_settings_name  = null
         url_path_map_name           = "url-path-map"
         redirect_configuration_name = null
+        rewrite_rule_set_name       = null
+        priority                    = 100
       }
     ]
   EOT
@@ -303,6 +322,8 @@ variable "request_routing_rules" {
     backend_http_settings_name  = optional(string, null)
     url_path_map_name           = optional(string, null)
     redirect_configuration_name = optional(string, null)
+    rewrite_rule_set_name       = optional(string, null)
+    priority                    = optional(number, null)
   }))
   
   default = []
@@ -326,7 +347,7 @@ variable "probes" {
         pick_host_name_from_backend_http_settings = true
         minimum_servers                            = 0
         match = {
-          status_codes = ["200-399"]
+          status_code = ["200-399"]
           body         = null
         }
       }
@@ -342,10 +363,10 @@ variable "probes" {
     unhealthy_threshold                       = number
     pick_host_name_from_backend_http_settings = optional(bool, true)
     minimum_servers                           = optional(number, 0)
-    match = object({
-      status_codes = list(string)
-      body         = optional(string, null)
-    })
+    match                                     = optional(object({
+      status_code = list(string)
+      body        = optional(string, null)
+    }), null)
   }))
   
   default = []
@@ -392,6 +413,8 @@ variable "waf_configuration" {
       file_upload_limit_mb     = 100
       max_request_body_size_kb  = 128
       request_body_check        = true
+      disabled_rule_groups      = null
+      exclusions                = null
     }
   EOT
   type = object({
@@ -402,6 +425,65 @@ variable "waf_configuration" {
     file_upload_limit_mb     = optional(number, 100)
     max_request_body_size_kb = optional(number, 128)
     request_body_check       = optional(bool, true)
+    disabled_rule_groups     = optional(list(object({
+      rule_group_name = string
+      rules           = optional(list(number), [])
+    })), null)
+    exclusions               = optional(list(object({
+      match_variable          = string
+      selector_match_operator = optional(string, null)
+      selector                = optional(string, null)
+    })), null)
+  })
+  default = null
+}
+
+variable "public_ip_enabled" {
+  description = "Whether to create a public IP address for the Application Gateway"
+  type        = bool
+  default     = true
+}
+
+variable "public_ip_allocation_method" {
+  description = "Allocation method for the public IP. Options: 'Static' or 'Dynamic'"
+  type        = string
+  default     = "Static"
+  
+  validation {
+    condition     = contains(["Static", "Dynamic"], var.public_ip_allocation_method)
+    error_message = "Public IP allocation method must be 'Static' or 'Dynamic'."
+  }
+}
+
+variable "public_ip_sku" {
+  description = "SKU for the public IP. Options: 'Basic' or 'Standard'"
+  type        = string
+  default     = "Standard"
+  
+  validation {
+    condition     = contains(["Basic", "Standard"], var.public_ip_sku)
+    error_message = "Public IP SKU must be 'Basic' or 'Standard'."
+  }
+}
+
+variable "public_ip_domain_name_label" {
+  description = "Domain name label for the public IP (optional). Creates FQDN: {label}.{region}.cloudapp.azure.com"
+  type        = string
+  default     = null
+}
+
+variable "identity" {
+  description = <<-EOT
+    Managed identity configuration for Key Vault integration.
+    Example:
+    identity = {
+      type         = "UserAssigned"
+      identity_ids = [azurerm_user_assigned_identity.appgw.id]
+    }
+  EOT
+  type = object({
+    type         = string # "SystemAssigned", "UserAssigned", "SystemAssigned,UserAssigned"
+    identity_ids = optional(list(string), [])
   })
   default = null
 }

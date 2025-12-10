@@ -20,32 +20,27 @@
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Front Door Profile
+# Front Door (Classic)
 # ----------------------------------------------------------------------------
-# Front Door Profile is the top-level resource that contains all Front Door
-# configurations including backend pools, routing rules, and frontend endpoints.
-# ----------------------------------------------------------------------------
-resource "azurerm_cdn_frontdoor_profile" "main" {
-  name                = var.front_door_name
-  resource_group_name = var.resource_group_name
-  sku_name            = "Premium_AzureFrontDoor"
-  
-  tags = var.tags
-}
-
-# ----------------------------------------------------------------------------
-# Front Door
-# ----------------------------------------------------------------------------
-# Front Door (classic) resource - Note: Azure Front Door Standard/Premium
-# uses different resources (azurerm_cdn_frontdoor_profile, etc.)
-# This module uses the classic Front Door resource for compatibility.
+# Azure Front Door (classic) is a global, scalable entry point that provides:
+# - Global load balancing across Azure regions
+# - WAF protection
+# - SSL/TLS termination
+# - Edge caching
+# - URL rewrite and redirect
+#
+# Note: Front Door is a global service and does not require a location attribute.
+# The location variable is kept for consistency but not used in the resource.
+#
+# Important: Azure Front Door Standard/Premium uses different resources
+# (azurerm_cdn_frontdoor_profile, azurerm_cdn_frontdoor_endpoint, etc.)
+# This module uses the classic Front Door resource (azurerm_frontdoor) for compatibility.
 # ----------------------------------------------------------------------------
 resource "azurerm_frontdoor" "main" {
-  name                                         = var.front_door_name
-  location                                     = var.location
-  resource_group_name                          = var.resource_group_name
-  friendly_name                                = var.friendly_name != null ? var.friendly_name : var.front_door_name
-  load_balancer_enabled                        = var.load_balancer_enabled
+  name                = var.front_door_name
+  resource_group_name = var.resource_group_name
+  friendly_name       = var.friendly_name != null ? var.friendly_name : var.front_door_name
+  load_balancer_enabled = var.load_balancer_enabled
   
   # Backend Pools
   dynamic "backend_pool" {
@@ -117,16 +112,28 @@ resource "azurerm_frontdoor" "main" {
       
       # Forwarding Configuration
       dynamic "forwarding_configuration" {
-        for_each = routing_rule.value.route_configuration != null ? [routing_rule.value.route_configuration] : []
+        for_each = routing_rule.value.route_configuration != null && routing_rule.value.route_configuration.forwarding_protocol != null ? [routing_rule.value.route_configuration] : []
         content {
-          forwarding_protocol                      = forwarding_configuration.value.forwarding_protocol
-          backend_pool_name                        = forwarding_configuration.value.backend_pool_name
-          cache_enabled                            = forwarding_configuration.value.cache_enabled
-          cache_query_parameter_strip_directive    = forwarding_configuration.value.cache_query_parameter_strip_directive
-          cache_duration                           = forwarding_configuration.value.cache_duration
-          cache_use_dynamic_compression            = forwarding_configuration.value.compression_enabled
-          query_parameter_strip_directive          = forwarding_configuration.value.query_parameter_strip_directive
-          custom_forwarding_path                    = forwarding_configuration.value.forwarding_path
+          forwarding_protocol                   = forwarding_configuration.value.forwarding_protocol
+          backend_pool_name                     = forwarding_configuration.value.backend_pool_name
+          cache_enabled                         = forwarding_configuration.value.cache_enabled != null ? forwarding_configuration.value.cache_enabled : false
+          cache_query_parameter_strip_directive = forwarding_configuration.value.cache_query_parameter_strip_directive != null ? forwarding_configuration.value.cache_query_parameter_strip_directive : "StripNone"
+          cache_duration                        = forwarding_configuration.value.cache_duration
+          cache_use_dynamic_compression         = forwarding_configuration.value.compression_enabled != null ? forwarding_configuration.value.compression_enabled : false
+          custom_forwarding_path                 = forwarding_configuration.value.forwarding_path
+        }
+      }
+      
+      # Redirect Configuration
+      dynamic "redirect_configuration" {
+        for_each = routing_rule.value.route_configuration != null && routing_rule.value.route_configuration.redirect_type != null ? [routing_rule.value.route_configuration] : []
+        content {
+          redirect_type       = redirect_configuration.value.redirect_type
+          redirect_protocol   = redirect_configuration.value.redirect_protocol
+          custom_host         = redirect_configuration.value.redirect_host
+          custom_path         = redirect_configuration.value.redirect_path
+          custom_query_string = redirect_configuration.value.redirect_query_string
+          custom_fragment     = redirect_configuration.value.redirect_fragment
         }
       }
     }

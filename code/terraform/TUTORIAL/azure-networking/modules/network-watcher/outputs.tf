@@ -19,3 +19,10 @@ output "flow_log_ids" {
   }
 }
 
+output "connection_monitor_ids" {
+  description = "Map of connection monitor names to their IDs"
+  value = {
+    for key, monitor in azurerm_network_connection_monitor.main : key => monitor.id
+  }
+}
+

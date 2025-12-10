@@ -14,17 +14,17 @@ output "application_gateway_name" {
 
 output "application_gateway_fqdn" {
   description = "The FQDN of the Application Gateway (if public IP has domain name label)"
-  value       = var.public_ip_enabled && var.public_ip_domain_name_label != null ? azurerm_public_ip.main[0].fqdn : null
+  value       = var.public_ip_enabled && var.public_ip_domain_name_label != null ? try(azurerm_public_ip.main[0].fqdn, null) : null
 }
 
 output "public_ip_address" {
   description = "The public IP address of the Application Gateway"
-  value       = var.public_ip_enabled ? azurerm_public_ip.main[0].ip_address : null
+  value       = var.public_ip_enabled ? try(azurerm_public_ip.main[0].ip_address, null) : null
 }
 
 output "public_ip_id" {
   description = "The ID of the public IP address"
-  value       = var.public_ip_enabled ? azurerm_public_ip.main[0].id : null
+  value       = var.public_ip_enabled ? try(azurerm_public_ip.main[0].id, null) : null
 }
 
 output "backend_address_pool_ids" {

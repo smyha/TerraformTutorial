@@ -118,9 +118,76 @@ module "app_gateway" {
 
 ## Requirements
 
-- Dedicated subnet for Application Gateway (minimum /24 for v1, /26 for v2)
-- Public IP address (for internet-facing gateway)
-- Backend servers configured
+- **Dedicated Subnet**: Application Gateway requires a dedicated subnet (no other resources)
+  - **V1 SKU**: Minimum /24 subnet (256 IPs)
+  - **V2 SKU**: Minimum /26 subnet (64 IPs) - recommended
+  - **Subnet Sizing Guidelines**:
+    - `/28` subnet: Supports up to 4 instances
+    - `/27` subnet: Supports up to 8 instances
+    - `/26` subnet: Supports up to 16 instances
+    - Plan subnet size based on expected scaling requirements
+- **Public IP Address**: Required for internet-facing gateway (optional for internal-only)
+- **Backend Servers**: Configure backend pools with healthy servers
+
+## Best Practices
+
+Based on Azure Application Gateway documentation:
+
+### SKU Selection
+- **Use V2 SKU**: Standard_v2 or WAF_v2 (recommended)
+  - Autoscaling support
+  - Zone redundancy
+  - Performance improvements
+  - Better cost optimization
+- **WAF Tier**: Use WAF_v2 for production web applications requiring security
+  - OWASP Core Rule Set (CRS) 3.0 or 3.2 (recommended)
+  - Protection against SQL injection, XSS, and other web vulnerabilities
+
+### Scaling Configuration
+- **Autoscaling (V2)**: Recommended for cost optimization
+  - Set appropriate min/max capacity based on traffic patterns
+  - Automatically scales based on application traffic
+- **Manual Scaling**: Only when you need fixed capacity
+  - Specify exact instance count
+  - Requires manual adjustment for traffic changes
+
+### Network Configuration
+- **Subnet Planning**: Size subnet based on maximum expected instances
+  - Example: If planning to scale to 4 instances, use /28 subnet
+  - Application Gateway uses private IPs for internal communication
+  - Additional IPs needed for each instance when scaling
+- **Zone Redundancy**: Enable for high availability (V2 SKU)
+  - Deploy across availability zones
+  - Provides protection against zone-level failures
+
+### Health Probes
+- **Dedicated Endpoint**: Use a dedicated health check endpoint (e.g., `/health`)
+- **Lightweight**: Keep health checks fast and lightweight
+- **Appropriate Interval**: Balance between responsiveness and overhead
+  - Default: 30 seconds
+  - Faster: 10 seconds for critical applications
+  - Slower: 60 seconds to reduce probe load
+- **Status Codes**: Configure appropriate healthy status code ranges (200-399 default)
+
+### Security
+- **HTTPS**: Enable HTTPS listeners with SSL certificates
+- **WAF Mode**: Use Prevention mode for production (Detection for testing)
+- **SSL Termination**: Offload SSL processing from backend servers
+- **End-to-End Encryption**: Consider encrypting traffic from gateway to backend
+
+### Load Balancing
+- **Round-Robin**: Default algorithm distributes requests evenly
+- **Session Affinity**: Enable only when required for stateful applications
+  - Use cookie-based affinity
+  - Disable when not needed for better load distribution
+- **Connection Draining**: Enable for graceful server removal
+  - Allows in-flight requests to complete before removing server
+  - Prevents user impact during maintenance
+
+### Routing
+- **Path-Based Routing**: Route different paths to specialized backend pools
+- **Multiple Site Hosting**: Host multiple websites on one gateway
+- **HTTP to HTTPS Redirection**: Automatically redirect insecure traffic
 
 ## Outputs
 

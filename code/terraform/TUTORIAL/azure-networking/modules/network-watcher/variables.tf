@@ -92,14 +92,14 @@ variable "connection_monitors" {
     }
   EOT
   type = map(object({
-    name = string
+    name  = string
+    notes = optional(string, null)
     source = object({
       virtual_machine_id = optional(string, null)
       address            = optional(string, null)
     })
     destination = object({
       address = string
-      port    = number
     })
     test_configurations = list(object({
       name                      = string

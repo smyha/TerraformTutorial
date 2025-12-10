@@ -46,6 +46,59 @@ graph TB
 
 Application Gateway comprises a series of components that combine to route requests to a pool of web servers and to check the health of these web servers. Understanding how these components are related and what role they play is essential for configuring Application Gateway effectively.
 
+### Component Overview
+
+Each component in Application Gateway has a specific role in the request routing process:
+
+**1. Front-End IP Address**
+- **Purpose**: Entry point for client requests
+- **Configuration**: Can be configured with a public IP address, a private IP address, or both
+- **Function**: Receives all incoming client requests before they are processed by other components
+- **Use Cases**: 
+  - Public IP for internet-facing applications
+  - Private IP for internal-only applications
+  - Both for applications requiring dual access
+
+**2. Listeners**
+- **Purpose**: Logical entity that checks for incoming connection requests
+- **Function**: Accepts requests when protocol, port, hostname, and IP address match the listener's configuration
+- **Requirements**: You must have at least one listener configured
+- **Configuration**: Defines which protocol (HTTP/HTTPS), port, hostname, and IP address to listen on
+- **Types**: Basic listener (path-based) or Multisite listener (hostname-based)
+
+**3. Request Routing Rules**
+- **Purpose**: Key component that determines how to route traffic on the listener
+- **Function**: Binds the listener, backend server pool, and backend HTTP settings together
+- **Decision Making**: When a listener accepts a request, the routing rule decides:
+  - Whether to forward the request to a backend pool
+  - Which backend pool to forward it to
+  - Whether to redirect the request elsewhere
+- **Types**: Basic rule, Path-based rule, or Multisite rule
+
+**4. Backend Pools**
+- **Purpose**: Collection of web servers that receive and process requests
+- **Function**: Contains the actual servers that handle application traffic
+- **Backend Targets**: Can include:
+  - Fixed set of virtual machines
+  - Virtual machine scale sets
+  - Apps hosted by Azure App Services
+  - Collection of on-premises servers
+- **Load Distribution**: Requests are distributed across servers in the pool using round-robin algorithm
+
+**5. Health Probes**
+- **Purpose**: Determine which servers are available for load-balancing in a backend pool
+- **Function**: Continuously monitor server health by sending probe requests
+- **Automatic Management**: Servers are automatically added and removed from the backend pool based on their availability
+- **Health Criteria**: Servers returning HTTP status codes 200-399 are considered healthy
+- **Impact**: Only healthy servers receive traffic, ensuring high availability
+
+**Component Interaction Flow:**
+```
+Client Request → Front-End IP → Listener → Routing Rule → Backend Pool → Backend Server
+                                                              ↑
+                                                         Health Probe
+```
+
 **Application Gateway Components Architecture:**
 ```mermaid
 graph TB
@@ -757,7 +810,77 @@ graph TB
 
 ## Check Your Knowledge
 
-### Question 1: Application Gateway Routing Criteria
+### Question 1: Primary Function of Application Gateway
+
+**What is the primary function of Azure Application Gateway?**
+
+- ✅ **Correct**: The Application Gateway is primarily used as a load balancer and web traffic manager.
+
+**Why:**
+- Application Gateway provides Layer 7 (application layer) load balancing
+- Manages and distributes web traffic across multiple backend servers
+- Routes traffic based on URL content (hostname, path)
+- Provides intelligent traffic management and routing capabilities
+- Ensures high availability through health monitoring and automatic failover
+
+**Key Functions:**
+- **Load Balancing**: Distributes requests evenly across backend servers using round-robin
+- **Traffic Management**: Routes traffic based on URL patterns and hostnames
+- **Health Monitoring**: Continuously checks backend server health
+- **SSL/TLS Termination**: Handles SSL/TLS encryption/decryption
+- **Web Application Firewall**: Optional WAF protection against web vulnerabilities
+
+### Question 2: Application Gateway Routing Type
+
+**Which type of routing does the Azure Application Gateway provide?**
+
+- ✅ **Correct**: Application, layer 7.
+
+**Why:**
+- Application Gateway operates at OSI Layer 7 (Application Layer)
+- Routes traffic based on application-level information (URL, hostname, path)
+- Provides content-aware routing, not just IP-based routing
+- Enables intelligent routing decisions based on HTTP/HTTPS request content
+- Supports advanced features like path-based routing and multiple site hosting
+
+**Layer 7 Characteristics:**
+- **Content-Aware**: Makes routing decisions based on URL content
+- **Protocol Support**: HTTP, HTTPS, HTTP/2, WebSocket
+- **Intelligent Routing**: Different paths can route to different backend pools
+- **Application Features**: SSL termination, header rewriting, URL rewriting
+
+**Comparison with Layer 4:**
+- **Layer 4 (Transport)**: Routes based on IP address and port (used by Azure Load Balancer)
+- **Layer 7 (Application)**: Routes based on URL, hostname, and path (used by Application Gateway)
+
+### Question 3: Application Gateway Listeners
+
+**What is a listener?**
+
+- ✅ **Correct**: A listener is an entity that checks for incoming connection requests.
+
+**Why:**
+- Listeners are logical entities that monitor for incoming requests
+- Check if incoming requests match specific criteria (protocol, port, hostname, IP address)
+- Accept requests when all configured criteria match
+- Act as the entry point after the front-end IP address
+- At least one listener is required for Application Gateway to function
+
+**Listener Functions:**
+- **Request Validation**: Verifies that requests match listener configuration
+- **Protocol Matching**: Checks if request uses correct protocol (HTTP/HTTPS)
+- **Port Matching**: Validates that request arrives on correct port (80, 443, etc.)
+- **Hostname Matching**: For multisite listeners, validates hostname
+- **Request Routing**: Passes accepted requests to routing rules
+
+**Listener Configuration:**
+- **Protocol**: HTTP or HTTPS
+- **Port**: Typically 80 (HTTP) or 443 (HTTPS)
+- **Hostname**: Specific hostname or wildcard (*)
+- **IP Address**: Frontend IP configuration
+- **SSL Certificate**: Required for HTTPS listeners
+
+### Question 4: Application Gateway Routing Criteria
 
 **Which criteria does Application Gateway use to route requests to a web server?**
 

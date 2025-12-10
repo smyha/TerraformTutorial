@@ -151,7 +151,7 @@ variable "routing_rules" {
   description = <<-EOT
     List of routing rules.
     
-    Example:
+    Example (Forwarding):
     routing_rules = [
       {
         name               = "http-rule"
@@ -166,6 +166,24 @@ variable "routing_rules" {
         }
       }
     ]
+    
+    Example (Redirect):
+    routing_rules = [
+      {
+        name               = "redirect-rule"
+        frontend_endpoints  = ["www-endpoint"]
+        accepted_protocols = ["Http"]
+        patterns_to_match  = ["/*"]
+        enabled            = true
+        route_configuration = {
+          redirect_type     = "Moved"
+          redirect_protocol = "HttpsOnly"
+          redirect_host     = "www.example.com"
+          redirect_path     = "/{path}"
+          redirect_query_string = "{query}"
+        }
+      }
+    ]
   EOT
   type = list(object({
     name               = string
@@ -174,14 +192,21 @@ variable "routing_rules" {
     patterns_to_match   = list(string)
     enabled            = optional(bool, true)
     route_configuration = object({
-      forwarding_protocol = string # "HttpOnly", "HttpsOnly", "MatchRequest"
-      backend_pool_name   = string
+      # Forwarding Configuration
+      forwarding_protocol = optional(string, null) # "HttpOnly", "HttpsOnly", "MatchRequest"
+      backend_pool_name   = optional(string, null)
       cache_enabled       = optional(bool, false)
       cache_query_parameter_strip_directive = optional(string, "StripNone")
       cache_duration      = optional(string, null)
       compression_enabled  = optional(bool, false)
-      query_parameter_strip_directive = optional(string, "StripNone")
       forwarding_path     = optional(string, null)
+      # Redirect Configuration
+      redirect_type       = optional(string, null) # "Moved", "Found", "TemporaryRedirect", "PermanentRedirect"
+      redirect_protocol   = optional(string, null) # "HttpOnly", "HttpsOnly", "MatchRequest"
+      redirect_host       = optional(string, null)
+      redirect_path       = optional(string, null)
+      redirect_query_string = optional(string, null)
+      redirect_fragment   = optional(string, null)
     })
   }))
   default = []

@@ -59,8 +59,15 @@ resource "azurerm_public_ip" "main" {
 #
 # Subnet Requirements:
 # - Dedicated subnet (no other resources)
-# - Minimum /24 CIDR (256 IP addresses)
-# - For v2 SKU: /26 minimum (64 IP addresses)
+# - Minimum /24 CIDR (256 IP addresses) for V1 SKU
+# - Minimum /26 CIDR (64 IP addresses) for V2 SKU (recommended)
+# - Subnet Sizing Guidelines:
+#   * /28 subnet: Supports up to 4 instances
+#   * /27 subnet: Supports up to 8 instances
+#   * /26 subnet: Supports up to 16 instances
+#   * Plan subnet size based on expected scaling requirements
+# - Application Gateway uses private IPs for internal communication
+# - Additional IPs needed for each instance when scaling
 # ----------------------------------------------------------------------------
 resource "azurerm_application_gateway" "main" {
   name                = var.application_gateway_name
@@ -68,13 +75,22 @@ resource "azurerm_application_gateway" "main" {
   resource_group_name = var.resource_group_name
   
   # SKU Configuration
+  # V2 SKU (Standard_v2, WAF_v2) is recommended:
+  # - Autoscaling support
+  # - Zone redundancy
+  # - Performance improvements
+  # - Better cost optimization
   sku {
     name     = var.sku_name
     tier     = var.sku_tier
-    capacity = var.sku_capacity  # null for autoscaling (v2 only)
+    capacity = var.sku_capacity  # null for autoscaling (v2 only), number for manual scaling
   }
   
   # Autoscale Configuration (v2 SKU only)
+  # Autoscaling is recommended for cost optimization:
+  # - Automatically scales based on application traffic
+  # - Set min/max capacity based on traffic patterns
+  # - Responds to traffic spikes automatically
   dynamic "autoscale_configuration" {
     for_each = var.autoscale_configuration != null ? [var.autoscale_configuration] : []
     content {
@@ -94,7 +110,7 @@ resource "azurerm_application_gateway" "main" {
     for_each = var.frontend_ip_configurations
     content {
       name                 = frontend_ip_configuration.value.name
-      public_ip_address_id = frontend_ip_configuration.value.public_ip_address_id
+      public_ip_address_id = frontend_ip_configuration.value.public_ip_address_id != null ? frontend_ip_configuration.value.public_ip_address_id : (var.public_ip_enabled && length(azurerm_public_ip.main) > 0 ? azurerm_public_ip.main[0].id : null)
       private_ip_address   = frontend_ip_configuration.value.private_ip_address
       subnet_id            = frontend_ip_configuration.value.subnet_id
     }
@@ -120,6 +136,9 @@ resource "azurerm_application_gateway" "main" {
   }
   
   # Backend HTTP Settings
+  # Load Balancing: Application Gateway uses round-robin algorithm by default
+  # Session Affinity: Enable only when required for stateful applications
+  # Connection Draining: Enable for graceful server removal during maintenance
   dynamic "backend_http_settings" {
     for_each = var.backend_http_settings
     content {
@@ -183,6 +202,12 @@ resource "azurerm_application_gateway" "main" {
   }
   
   # Probes (Health Checks)
+  # Health Probe Best Practices:
+  # - Use dedicated health check endpoint (e.g., /health)
+  # - Keep health checks fast and lightweight
+  # - Balance interval between responsiveness and overhead (30s default)
+  # - Configure appropriate healthy status code ranges (200-399 default)
+  # - Only healthy servers receive traffic (round-robin distribution)
   dynamic "probe" {
     for_each = var.probes
     content {
@@ -219,6 +244,11 @@ resource "azurerm_application_gateway" "main" {
   }
   
   # Web Application Firewall Configuration (WAF SKU only)
+  # WAF Best Practices:
+  # - Use WAF_v2 SKU for production web applications
+  # - Use OWASP CRS 3.0 or 3.2 (recommended, more recent than 2.2.9)
+  # - Prevention mode for production, Detection mode for testing
+  # - Protects against SQL injection, XSS, command injection, and other OWASP Top 10 threats
   dynamic "waf_configuration" {
     for_each = var.waf_configuration != null ? [var.waf_configuration] : []
     content {
@@ -261,6 +291,10 @@ resource "azurerm_application_gateway" "main" {
   }
   
   # Zones (for zone redundancy)
+  # Zone redundancy is available in V2 SKU:
+  # - Deploy across availability zones for high availability
+  # - Provides protection against zone-level failures
+  # - Recommended for production workloads
   zones = var.zones
   
   tags = var.tags
